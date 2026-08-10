@@ -1,0 +1,100 @@
+/* Arrière-plan 3D global : positionné derrière tout le contenu (z-index 0,
+   #root passe à z-index 1 dans index.css), fixe, décalé pour rester
+   discret et ne jamais gêner la lecture. Uniquement des animations
+   transform/opacity → accélérées matériellement, coût quasi nul. */
+.cyber-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+  opacity: 0.5;
+}
+
+.cyber-bg__field {
+  position: absolute;
+  top: 8%;
+  right: -8%;
+  width: min(52vw, 620px);
+  height: min(52vw, 620px);
+  perspective: 1400px;
+}
+
+.cyber-bg__core {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  border-radius: 50%;
+  background: rgb(var(--accent));
+  box-shadow: 0 0 24px 6px rgb(var(--accent) / 0.55);
+  animation: cyberCorePulse 4s ease-in-out infinite;
+}
+
+.cyber-bg__ring {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform-style: preserve-3d;
+}
+
+.cyber-bg__spin {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  animation-name: cyberRingSpin;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+.cyber-bg__spin--reverse {
+  animation-direction: reverse;
+}
+
+.cyber-bg__track {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1px solid rgb(var(--accent) / 0.30);
+}
+
+.cyber-bg__satellite {
+  position: absolute;
+  top: 50%;
+  left: 100%;
+  width: 7px;
+  height: 7px;
+  margin: -3.5px 0 0 -3.5px;
+  border-radius: 50%;
+  background: rgb(var(--accent));
+  box-shadow: 0 0 10px 2px rgb(var(--accent) / 0.7);
+}
+
+@keyframes cyberRingSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes cyberCorePulse {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.5); }
+}
+
+:root.light .cyber-bg {
+  opacity: 0.3;
+}
+
+@media (max-width: 768px) {
+  .cyber-bg__field {
+    width: min(80vw, 420px);
+    height: min(80vw, 420px);
+    top: 4%;
+    right: -20%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cyber-bg__spin { animation: none; }
+  .cyber-bg__core { animation: none; }
+}

@@ -1,0 +1,105 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  scrape_timeout: 10s
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+
+rule_files:
+  - "alert.rules.yml"
+
+scrape_configs:
+  # DockerOpt Backend (custom metrics)
+  - job_name: 'dockeropt-backend'
+    scrape_interval: 10s
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['dockeropt-backend:5000']
+        labels:
+          app: 'dockeropt'
+
+  # Node Exporter - système hôte
+  - job_name: 'node-exporter'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['node-exporter:9100']
+        labels:
+          app: 'dockeropt'
+
+  # cAdvisor - métriques Docker/containers
+  - job_name: 'cadvisor'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['cadvisor:8080']
+        labels:
+          app: 'dockeropt'
+
+  # Microservices
+  - job_name: 'api-gateway'
+    scrape_interval: 10s
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['api-gateway:3000']
+        labels:
+          service: 'api-gateway'
+          app: 'dockeropt'
+
+  - job_name: 'user-service'
+    scrape_interval: 10s
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['user-service:3001']
+        labels:
+          service: 'user-service'
+          app: 'dockeropt'
+
+  - job_name: 'product-service'
+    scrape_interval: 10s
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['product-service:3002']
+        labels:
+          service: 'product-service'
+          app: 'dockeropt'
+
+  - job_name: 'notification-service'
+    scrape_interval: 10s
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['notification-service:3003']
+        labels:
+          service: 'notification-service'
+          app: 'dockeropt'
+
+  # Auto-découverte Docker — permet à toute NOUVELLE application microservice
+  # d'être supervisée sans modifier ce fichier : il suffit d'ajouter au
+  # conteneur les labels suivants (voir panneau "Connecter un service" dans
+  # l'interface DockerOpt) :
+  #   prometheus.enable=true         → active la découverte
+  #   prometheus.io/port=<port>      → port qui expose /metrics (def: 9100)
+  #   prometheus.io/path=<chemin>    → chemin des métriques (def: /metrics)
+  - job_name: 'docker'
+    scrape_interval: 15s
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 15s
+        filters:
+          - name: label
+            values: ['prometheus.enable=true']
+    relabel_configs:
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(.*)'
+        target_label: 'container'
+      - source_labels: ['__meta_docker_container_label_prometheus_io_port']
+        regex: '(.+)'
+        target_label: '__tmp_port'
+      - source_labels: ['__address__', '__tmp_port']
+        regex: '([^:]+):\d+;(.+)'
+        target_label: '__address__'
+        replacement: '${1}:${2}'
+      - source_labels: ['__meta_docker_container_label_prometheus_io_path']
+        regex: '(.+)'
+        target_label: '__metrics_path__'

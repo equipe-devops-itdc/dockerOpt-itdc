@@ -1,0 +1,74 @@
+groups:
+  - name: DockerOpt_Alerts
+    interval: 30s
+    rules:
+      # CPU Alerts — métrique cAdvisor par conteneur (l'ancienne version
+      # utilisait node_cpu_seconds_total, une métrique HÔTE de node-exporter
+      # sans label "container" : elle ne pouvait jamais correspondre à un
+      # conteneur précis).
+      - alert: HighCPUUsage
+        expr: sum by(name) (rate(container_cpu_usage_seconds_total{name!=""}[2m])) * 100 > 80
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Container CPU usage > 80%"
+          description: "Container {{ $labels.name }} a une utilisation CPU de {{ $value }}%"
+
+      - alert: CriticalCPUUsage
+        expr: sum by(name) (rate(container_cpu_usage_seconds_total{name!=""}[2m])) * 100 > 90
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Container CPU usage > 90%"
+          description: "Container {{ $labels.name }} a une utilisation CPU critique de {{ $value }}%"
+
+      # Memory Alerts
+      - alert: HighMemoryUsage
+        expr: (container_memory_usage_bytes / container_spec_memory_limit_bytes) * 100 > 80
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Container memory usage > 80%"
+          description: "Container {{ $labels.container }} utilise {{ $value }}% de sa mémoire allouée"
+
+      - alert: CriticalMemoryUsage
+        expr: (container_memory_usage_bytes / container_spec_memory_limit_bytes) * 100 > 90
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Container memory usage > 90%"
+          description: "Container {{ $labels.container }} utilise {{ $value }}% de sa mémoire allouée - Risque d'OOM"
+
+      # Disk Alerts
+      - alert: DiskSpaceLow
+        expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) * 100 < 20
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Disk space < 20% remaining"
+          description: "Espace disque disponible: {{ $value }}%"
+
+      # Service Down Alert
+      - alert: ServiceDown
+        expr: up == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service {{ $labels.instance }} is DOWN"
+          description: "Le service {{ $labels.job }} est injoignable depuis 30 secondes"
+
+      # HTTP High Latency
+      - alert: HighRequestLatency
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High request latency P95 > 1s"
+          description: "La latence P95 des requêtes est de {{ $value }}s pour {{ $labels.job }}"

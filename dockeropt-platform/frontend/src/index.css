@@ -1,0 +1,786 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Thème sombre — ardoise/sarcelle profonde (plutôt qu'un noir-bleu pur),
+       accent cyan électrique, grille technique et lueurs bleu/vert animées. */
+    --ink-950: 10 16 18;
+    --ink-900: 13 20 23;
+    --ink-800: 19 28 31;
+    --ink-700: 25 36 40;
+    --ink-600: 32 46 50;
+    --ink-500: 41 57 62;
+    --ink-400: 63 82 87;
+    --text: 224 232 233;
+    --text-dim: 143 160 161;
+    --text-faint: 96 115 117;
+    --scrollbar-thumb: #2C3E40;
+    --panel-shadow: 0 1px 0 0 rgba(255,255,255,0.02) inset, 0 8px 24px -12px rgba(0,0,0,0.6);
+    --accent: 45 212 191; /* cyan électrique */
+    --grid-line: rgba(76, 141, 255, 0.14);
+    --scan-1: rgba(45, 212, 191, 0.35);   /* vert-cyan */
+    --scan-2: rgba(76, 141, 255, 0.30);   /* bleu */
+    --bg-anim-opacity-grid: 0.55;
+    --bg-anim-opacity-glow: 0.6;
+  }
+
+  :root.light {
+    /* Thème clair — surfaces blanches façon "salle de contrôle diurne" :
+       échelle slate propre, accent vert émeraude (sécurité/validé), grille
+       et lueurs bleu/vert reprises en beaucoup plus subtil pour ne jamais
+       nuire à la lisibilité sur fond clair. */
+    --ink-950: 255 255 255;
+    --ink-900: 248 250 252;
+    --ink-800: 255 255 255;
+    --ink-700: 241 245 249;
+    --ink-600: 226 232 240;
+    --ink-500: 203 213 225;
+    --ink-400: 148 163 184;
+    --text: 15 23 42;
+    --text-dim: 71 85 105;
+    --text-faint: 100 116 139;
+    --scrollbar-thumb: #CBD5E1;
+    --panel-shadow: 0 1px 0 0 rgba(255,255,255,0.8) inset, 0 4px 20px -6px rgba(15,23,42,0.10), 0 1px 3px rgba(15,23,42,0.06);
+    --accent: 5 150 105; /* emerald-600 */
+    --grid-line: rgba(5, 150, 105, 0.08);
+    --scan-1: rgba(5, 150, 105, 0.16);
+    --scan-2: rgba(37, 99, 235, 0.14);
+    --bg-anim-opacity-grid: 0.6;
+    --bg-anim-opacity-glow: 0.5;
+  }
+
+  html {
+    color-scheme: dark;
+  }
+  html.light {
+    color-scheme: light;
+  }
+  body {
+    @apply bg-ink-900 text-text font-body antialiased;
+    position: relative;
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+
+  /* ---- Arrière-plan animé "cybersécurité" (les deux thèmes) ----
+     Grille technique en lente dérive diagonale + deux lueurs qui pulsent
+     doucement (bleu/vert). Entièrement en CSS — background-position,
+     transform et opacity uniquement, donc accéléré matériellement et sans
+     coût de mise en page ni de performance. Intensité réduite en mode
+     clair pour rester discret sur fond blanc ; désactivé pour les
+     personnes ayant demandé moins d'animations dans leur système. */
+  body::before,
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+  }
+  body::before {
+    background-image:
+      linear-gradient(var(--grid-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+    background-size: 42px 42px;
+    opacity: var(--bg-anim-opacity-grid);
+    animation: gridDrift 60s linear infinite;
+    mask-image: radial-gradient(1200px 800px at 50% 0%, black, transparent 75%);
+  }
+  /* Léger champ d'étoiles, mode sombre uniquement — complète l'ambiance
+     "spatiale" (motif tuilé, très discret, purement décoratif). */
+  :root:not(.light) body::before {
+    background-image:
+      radial-gradient(1.4px 1.4px at 15% 20%, rgba(255,255,255,0.55), transparent),
+      radial-gradient(1px 1px at 55% 65%, rgba(255,255,255,0.35), transparent),
+      radial-gradient(1.4px 1.4px at 80% 30%, rgba(255,255,255,0.4), transparent),
+      radial-gradient(1px 1px at 30% 85%, rgba(255,255,255,0.3), transparent),
+      radial-gradient(1.2px 1.2px at 92% 78%, rgba(255,255,255,0.4), transparent),
+      linear-gradient(var(--grid-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+    background-size: 260px 260px, 260px 260px, 260px 260px, 260px 260px, 260px 260px, 42px 42px, 42px 42px;
+  }
+  body::after {
+    background:
+      radial-gradient(650px 320px at 12% 12%, var(--scan-1), transparent 60%),
+      radial-gradient(550px 280px at 88% 75%, var(--scan-2), transparent 60%);
+    opacity: var(--bg-anim-opacity-glow);
+    animation: glowDrift 18s ease-in-out infinite;
+    filter: blur(6px);
+  }
+
+  #root {
+    position: relative;
+    z-index: 1;
+  }
+
+  @keyframes gridDrift {
+    from { background-position: 0 0, 0 0; }
+    to { background-position: 84px 84px, 84px 84px; }
+  }
+  @keyframes glowDrift {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(3%, -2%) scale(1.06); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    body::before, body::after { animation: none; }
+  }
+
+  ::selection {
+    background: rgb(var(--accent) / 0.25);
+  }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) transparent;
+  }
+  *::-webkit-scrollbar { width: 8px; height: 8px; }
+  *::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 8px; }
+  *::-webkit-scrollbar-track { background: transparent; }
+}
+
+@layer components {
+  .panel {
+    @apply bg-ink-800/55 border border-ink-500 rounded-xl backdrop-blur-md relative;
+    box-shadow: var(--panel-shadow);
+  }
+  /* Panneau "vitre" décoré — bordure lumineuse dégradée, fond très
+     transparent avec flou prononcé, dans l'esprit de la référence
+     visuelle (cartes translucides sur fond spatial). Utilisé pour les
+     zones qu'on veut mettre en avant (ex: en-tête du tableau de bord). */
+  .panel-glow {
+    @apply rounded-2xl backdrop-blur-md;
+    background: linear-gradient(160deg, rgb(var(--ink-800) / 0.55), rgb(var(--ink-800) / 0.25));
+    border: 1px solid rgb(var(--accent) / 0.35);
+    box-shadow:
+      0 0 0 1px rgb(var(--accent) / 0.08),
+      0 0 40px -8px rgb(var(--accent) / 0.35),
+      var(--panel-shadow);
+  }
+  .eyebrow {
+    @apply text-[11px] font-mono uppercase tracking-[0.14em] text-text-faint;
+  }
+  .btn {
+    @apply inline-flex items-center gap-2 rounded-lg text-sm font-medium px-3.5 py-2 transition-colors duration-150 disabled:opacity-40 disabled:pointer-events-none;
+  }
+  .btn-primary {
+    @apply btn bg-signal-accent/90 text-accent-fg hover:bg-signal-accent;
+  }
+  .btn-ghost {
+    @apply btn bg-ink-700 text-text hover:bg-ink-600 border border-ink-500;
+  }
+  .btn-warning {
+    @apply btn bg-signal-amber/90 text-accent-fg hover:bg-signal-amber;
+  }
+  .input {
+    @apply w-full bg-ink-950 border border-ink-500 rounded-lg px-3 py-2 text-sm text-text placeholder:text-text-faint focus:outline-none focus:border-signal-accent/50 transition-colors;
+  }
+}
+
+
+/* =========================================================
+   DockerOpt — premium DevOps login
+   CSS-only 3D scene: lightweight, responsive, no extra dependency.
+   ========================================================= */
+
+.login-shell {
+  min-height: 100svh;
+  width: 100%;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  isolation: isolate;
+  background:
+    radial-gradient(900px 650px at 78% 42%, rgba(45,212,191,.10), transparent 62%),
+    radial-gradient(700px 520px at 18% 80%, rgba(76,141,255,.10), transparent 65%),
+    rgb(var(--ink-950));
+}
+
+.login-grid-glow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: .55;
+  background-image:
+    linear-gradient(rgba(45,212,191,.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(45,212,191,.045) 1px, transparent 1px);
+  background-size: 46px 46px;
+  mask-image: radial-gradient(ellipse 80% 90% at 72% 50%, #000 0%, transparent 76%);
+  animation: loginGridMove 32s linear infinite;
+}
+
+.login-layout {
+  width: min(1240px, calc(100% - 48px));
+  min-height: min(760px, calc(100svh - 48px));
+  margin: 24px auto;
+  display: grid;
+  grid-template-columns: minmax(360px, .84fr) minmax(500px, 1.16fr);
+  gap: clamp(30px, 5vw, 82px);
+  align-items: center;
+  position: relative;
+  z-index: 2;
+}
+
+.login-panel-wrap {
+  display: flex;
+  justify-content: center;
+  perspective: 1200px;
+}
+
+.login-card {
+  width: min(100%, 470px);
+  padding: clamp(28px, 4vw, 42px);
+  border: 1px solid rgba(148,163,184,.15);
+  border-radius: 24px;
+  background:
+    linear-gradient(145deg, rgba(255,255,255,.055), rgba(255,255,255,.018)),
+    rgba(13,20,23,.72);
+  box-shadow:
+    0 30px 90px -38px rgba(0,0,0,.95),
+    0 0 0 1px rgba(45,212,191,.025) inset,
+    0 0 70px -38px rgba(45,212,191,.35);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  transform: translateZ(0);
+  animation: loginCardIn .75s cubic-bezier(.2,.75,.2,1) both;
+}
+
+:root.light .login-card {
+  background: rgba(255,255,255,.78);
+  border-color: rgba(15,23,42,.10);
+  box-shadow: 0 30px 70px -40px rgba(15,23,42,.28), 0 0 55px -40px rgba(5,150,105,.28);
+}
+
+.login-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.login-brand-mark {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 13px;
+  color: rgb(var(--accent));
+  background: rgb(var(--accent) / .09);
+  border: 1px solid rgb(var(--accent) / .20);
+  box-shadow: 0 0 28px rgb(var(--accent) / .12), inset 0 0 16px rgb(var(--accent) / .05);
+}
+
+.login-brand-name {
+  font-family: var(--font-display, ui-sans-serif);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -.025em;
+}
+
+.login-brand-kicker, .login-eyebrow {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 9px;
+  letter-spacing: .16em;
+  color: rgb(var(--text-faint));
+}
+
+.login-live-dot {
+  margin-left: auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: rgb(var(--accent));
+  box-shadow: 0 0 0 5px rgb(var(--accent) / .08), 0 0 18px rgb(var(--accent) / .75);
+  animation: loginPulse 2.2s ease-in-out infinite;
+}
+
+.login-heading {
+  margin: 48px 0 30px;
+}
+
+.login-heading h1 {
+  margin: 8px 0 10px;
+  font-family: var(--font-display, ui-sans-serif);
+  font-size: clamp(28px, 3.2vw, 38px);
+  line-height: 1.05;
+  letter-spacing: -.045em;
+  font-weight: 700;
+}
+
+.login-heading p {
+  max-width: 390px;
+  margin: 0;
+  color: rgb(var(--text-dim));
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.login-fields {
+  display: grid;
+  gap: 18px;
+}
+
+.login-field > span {
+  display: block;
+  margin-bottom: 8px;
+  color: rgb(var(--text-dim));
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+.login-input-wrap {
+  position: relative;
+}
+
+.login-input {
+  height: 50px !important;
+  padding-left: 15px !important;
+  padding-right: 46px !important;
+  border-radius: 12px !important;
+  border-color: rgba(148,163,184,.14) !important;
+  background: rgba(0,0,0,.17) !important;
+  transition: border-color .2s ease, box-shadow .2s ease, background .2s ease, transform .2s ease;
+}
+
+.login-input:focus {
+  border-color: rgb(var(--accent) / .48) !important;
+  box-shadow: 0 0 0 3px rgb(var(--accent) / .07), 0 0 30px -18px rgb(var(--accent) / .65);
+  background: rgba(0,0,0,.24) !important;
+  transform: translateY(-1px);
+}
+
+.login-password-toggle {
+  position: absolute;
+  right: 5px;
+  top: 5px;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 9px;
+  color: rgb(var(--text-faint));
+  background: transparent;
+  cursor: pointer;
+  transition: color .18s ease, background .18s ease;
+}
+
+.login-password-toggle:hover {
+  color: rgb(var(--accent));
+  background: rgb(var(--accent) / .07);
+}
+
+.login-error {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 18px;
+  padding: 11px 13px;
+  border-radius: 11px;
+  color: rgb(248 113 113);
+  background: rgb(248 113 113 / .07);
+  border: 1px solid rgb(248 113 113 / .16);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.login-submit {
+  width: 100%;
+  height: 51px;
+  margin-top: 24px;
+  border: 1px solid rgb(var(--accent) / .42);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  color: #071312;
+  background: linear-gradient(135deg, rgb(var(--accent)), rgb(var(--accent) / .78));
+  box-shadow: 0 12px 30px -18px rgb(var(--accent) / .9), inset 0 1px rgba(255,255,255,.35);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  cursor: pointer;
+  transition: transform .2s ease, box-shadow .2s ease, filter .2s ease;
+}
+
+.login-submit:hover:not(:disabled) {
+  transform: translateY(-2px);
+  filter: saturate(1.12);
+  box-shadow: 0 18px 38px -18px rgb(var(--accent) / 1), 0 0 35px -18px rgb(var(--accent) / .8);
+}
+
+.login-submit:active:not(:disabled) { transform: translateY(0); }
+.login-submit:disabled { opacity: .65; cursor: wait; }
+
+.login-trust {
+  margin-top: 18px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 7px;
+  color: rgb(var(--text-faint));
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 9px;
+}
+
+.login-status-pip {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-right: 4px;
+  border-radius: 50%;
+  background: rgb(var(--accent));
+  box-shadow: 0 0 9px rgb(var(--accent) / .8);
+}
+
+/* -------- 3D DevOps scene -------- */
+
+.devops-stage {
+  min-width: 0;
+  position: relative;
+  padding: 10px 0;
+  animation: stageIn .9s .08s cubic-bezier(.2,.75,.2,1) both;
+}
+
+.devops-stage-copy {
+  position: relative;
+  z-index: 4;
+  max-width: 620px;
+}
+
+.devops-stage-copy h2 {
+  margin: 12px 0 14px;
+  font-family: var(--font-display, ui-sans-serif);
+  font-size: clamp(40px, 5.5vw, 70px);
+  line-height: .94;
+  letter-spacing: -.065em;
+  font-weight: 650;
+}
+
+.devops-stage-copy h2 strong {
+  color: rgb(var(--accent));
+  font-weight: inherit;
+  text-shadow: 0 0 38px rgb(var(--accent) / .24);
+}
+
+.devops-stage-copy p {
+  max-width: 500px;
+  color: rgb(var(--text-dim));
+  font-size: 14px;
+  line-height: 1.75;
+}
+
+.devops-scene {
+  width: min(100%, 640px);
+  height: 410px;
+  margin: 8px auto -10px;
+  position: relative;
+  transform-style: preserve-3d;
+  perspective: 1000px;
+}
+
+.scene-orbit {
+  position: absolute;
+  left: 50%;
+  top: 52%;
+  border: 1px solid rgb(var(--accent) / .16);
+  border-radius: 50%;
+  transform-style: preserve-3d;
+  pointer-events: none;
+}
+
+.orbit-a {
+  width: 430px;
+  height: 150px;
+  margin: -75px 0 0 -215px;
+  transform: rotateX(64deg) rotateZ(-16deg);
+  box-shadow: 0 0 28px -20px rgb(var(--accent) / .8);
+  animation: orbitSpinA 14s linear infinite;
+}
+
+.orbit-b {
+  width: 350px;
+  height: 350px;
+  margin: -175px 0 0 -175px;
+  transform: rotateX(68deg) rotateY(22deg);
+  border-color: rgba(76,141,255,.16);
+  animation: orbitSpinB 18s linear infinite reverse;
+}
+
+.orbit-c {
+  width: 510px;
+  height: 220px;
+  margin: -110px 0 0 -255px;
+  transform: rotateX(76deg) rotateZ(56deg);
+  border-color: rgb(var(--accent) / .08);
+  animation: orbitSpinC 22s linear infinite;
+}
+
+.scene-core {
+  position: absolute;
+  left: 50%;
+  top: 52%;
+  width: 170px;
+  height: 170px;
+  margin: -85px 0 0 -85px;
+  transform-style: preserve-3d;
+  animation: coreFloat 5s ease-in-out infinite;
+}
+
+.core-glass {
+  position: absolute;
+  inset: 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border-radius: 28px;
+  color: rgb(var(--accent));
+  background: linear-gradient(145deg, rgba(45,212,191,.16), rgba(5,16,18,.72));
+  border: 1px solid rgb(var(--accent) / .35);
+  box-shadow:
+    0 0 45px -18px rgb(var(--accent) / .75),
+    inset 0 0 28px rgb(var(--accent) / .07);
+  backdrop-filter: blur(8px);
+  transform: translateZ(35px) rotateX(4deg) rotateY(-5deg);
+}
+
+.core-glass span {
+  margin-top: 3px;
+  color: rgb(var(--text-faint));
+  font: 8px ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: .18em;
+}
+
+.core-glass b {
+  font: 700 12px ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: .15em;
+}
+
+.core-scan {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  height: 2px;
+  top: 35%;
+  border-radius: 99px;
+  background: rgb(var(--accent) / .8);
+  box-shadow: 0 0 14px rgb(var(--accent) / .8);
+  animation: coreScan 2.8s ease-in-out infinite;
+}
+
+.scene-node {
+  position: absolute;
+  z-index: 5;
+  min-width: 126px;
+  padding: 12px 14px;
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  gap: 2px 8px;
+  align-items: center;
+  border-radius: 12px;
+  color: rgb(var(--text-dim));
+  background: rgba(9,17,19,.72);
+  border: 1px solid rgba(148,163,184,.13);
+  box-shadow: 0 16px 34px -22px rgba(0,0,0,.9), inset 0 1px rgba(255,255,255,.04);
+  backdrop-filter: blur(12px);
+  transform-style: preserve-3d;
+  animation: nodeFloat 4.8s ease-in-out infinite;
+}
+
+.scene-node svg {
+  grid-row: span 2;
+  color: rgb(var(--accent));
+}
+
+.scene-node span {
+  font: 8px ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: .12em;
+  color: rgb(var(--text-faint));
+}
+
+.scene-node b {
+  font: 700 9px ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: rgb(var(--text));
+}
+
+.node-server { left: 2%; top: 30%; transform: translateZ(60px) rotateY(8deg); }
+.node-metrics { right: 2%; top: 23%; transform: translateZ(80px) rotateY(-8deg); animation-delay: -.9s; }
+.node-gauge { left: 10%; bottom: 15%; transform: translateZ(30px) rotateY(8deg); animation-delay: -1.7s; }
+.node-terminal { right: 8%; bottom: 10%; transform: translateZ(55px) rotateY(-8deg); animation-delay: -2.4s; }
+
+.scene-packet {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgb(var(--accent));
+  box-shadow: 0 0 15px rgb(var(--accent));
+  z-index: 8;
+}
+
+.packet-one { left: 17%; top: 42%; animation: packetOne 4.5s linear infinite; }
+.packet-two { right: 19%; top: 39%; animation: packetTwo 5.2s linear infinite -.9s; }
+.packet-three { left: 25%; bottom: 26%; animation: packetThree 4.8s linear infinite -2s; }
+
+.devops-stats {
+  display: flex;
+  gap: 10px;
+  max-width: 620px;
+  margin: -4px auto 0;
+}
+
+.devops-stats div {
+  flex: 1;
+  min-width: 0;
+  padding: 11px 13px;
+  border: 1px solid rgba(148,163,184,.10);
+  border-radius: 10px;
+  background: rgba(255,255,255,.018);
+}
+
+.devops-stats strong, .devops-stats span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.devops-stats strong {
+  color: rgb(var(--text));
+  font: 700 9px ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.devops-stats span {
+  margin-top: 4px;
+  color: rgb(var(--text-faint));
+  font-size: 9px;
+}
+
+/* Animation keyframes */
+
+@keyframes loginGridMove {
+  to { background-position: 92px 92px; }
+}
+
+@keyframes loginCardIn {
+  from { opacity: 0; transform: translateY(24px) rotateX(3deg); }
+  to { opacity: 1; transform: translateY(0) rotateX(0); }
+}
+
+@keyframes stageIn {
+  from { opacity: 0; transform: translateX(30px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes loginPulse {
+  0%, 100% { opacity: .65; transform: scale(.9); }
+  50% { opacity: 1; transform: scale(1.12); }
+}
+
+@keyframes coreFloat {
+  0%, 100% { transform: translate3d(0, 0, 0) rotateX(0deg); }
+  50% { transform: translate3d(0, -10px, 0) rotateX(2deg); }
+}
+
+@keyframes coreScan {
+  0%, 100% { transform: translateY(-17px); opacity: 0; }
+  25%, 75% { opacity: .8; }
+  50% { transform: translateY(58px); opacity: 1; }
+}
+
+@keyframes nodeFloat {
+  0%, 100% { margin-top: 0; }
+  50% { margin-top: -8px; }
+}
+
+@keyframes orbitSpinA {
+  from { transform: rotateX(64deg) rotateZ(-16deg) rotate(0deg); }
+  to { transform: rotateX(64deg) rotateZ(-16deg) rotate(360deg); }
+}
+
+@keyframes orbitSpinB {
+  from { transform: rotateX(68deg) rotateY(22deg) rotate(360deg); }
+  to { transform: rotateX(68deg) rotateY(22deg) rotate(0deg); }
+}
+
+@keyframes orbitSpinC {
+  from { transform: rotateX(76deg) rotateZ(56deg) rotate(0deg); }
+  to { transform: rotateX(76deg) rotateZ(56deg) rotate(-360deg); }
+}
+
+@keyframes packetOne {
+  0% { transform: translate3d(0,0,0); opacity: 0; }
+  15% { opacity: 1; }
+  55% { transform: translate3d(155px, -35px, 65px); opacity: 1; }
+  70%,100% { transform: translate3d(210px, -15px, 25px); opacity: 0; }
+}
+
+@keyframes packetTwo {
+  0% { transform: translate3d(0,0,0); opacity: 0; }
+  15% { opacity: 1; }
+  60% { transform: translate3d(-165px, 30px, 80px); opacity: 1; }
+  75%,100% { transform: translate3d(-215px, 42px, 20px); opacity: 0; }
+}
+
+@keyframes packetThree {
+  0% { transform: translate3d(0,0,0); opacity: 0; }
+  15% { opacity: 1; }
+  58% { transform: translate3d(95px, -72px, 50px); opacity: 1; }
+  75%,100% { transform: translate3d(125px, -90px, 10px); opacity: 0; }
+}
+
+@media (max-width: 980px) {
+  .login-layout {
+    grid-template-columns: minmax(340px, 520px);
+    justify-content: center;
+    min-height: auto;
+    padding: 38px 0;
+  }
+  .devops-stage {
+    display: none;
+  }
+  .login-shell {
+    overflow-y: auto;
+  }
+}
+
+@media (max-width: 560px) {
+  .login-layout {
+    width: min(100% - 24px, 470px);
+    margin: 12px auto;
+    padding: 12px 0;
+  }
+  .login-card {
+    padding: 25px 20px 22px;
+    border-radius: 20px;
+  }
+  .login-heading {
+    margin-top: 38px;
+  }
+  .login-heading h1 {
+    font-size: 30px;
+  }
+  .login-trust {
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-grid-glow,
+  .login-card,
+  .devops-stage,
+  .login-live-dot,
+  .scene-orbit,
+  .scene-core,
+  .scene-node,
+  .scene-packet,
+  .core-scan {
+    animation: none !important;
+  }
+}

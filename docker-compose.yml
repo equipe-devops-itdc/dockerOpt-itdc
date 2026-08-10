@@ -1,0 +1,230 @@
+version: '3.8'
+
+networks:
+  dockeropt-network:
+    name: ${DOCKEROPT_NETWORK_NAME}
+    driver: bridge
+    ipam:
+      config:
+        - subnet: ${DOCKEROPT_NETWORK_SUBNET}
+
+volumes:
+  prometheus-data:
+    name: ${PROMETHEUS_DATA_VOLUME}
+  dockeropt-postgres-data:
+    name: ${POSTGRES_DATA_VOLUME}
+
+services:
+  api-gateway:
+    build: ${API_GATEWAY_IMAGE}
+    container_name: ${API_GATEWAY_CONTAINER_NAME}
+    ports:
+      - "${API_GATEWAY_PORT}:${API_GATEWAY_PORT}"
+    environment:
+      PORT: ${API_GATEWAY_PORT}
+      USER_SERVICE_URL: ${API_GATEWAY_USER_SERVICE_URL}
+      PRODUCT_SERVICE_URL: ${API_GATEWAY_PRODUCT_SERVICE_URL}
+      NOTIFICATION_SERVICE_URL: ${API_GATEWAY_NOTIFICATION_SERVICE_URL}
+    networks: [dockeropt-network]
+    restart: unless-stopped
+    mem_limit: ${API_GATEWAY_MEM_LIMIT}
+    cpus: '${API_GATEWAY_CPUS}'
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:${API_GATEWAY_PORT}/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  user-service:
+    build: ${USER_SERVICE_IMAGE}
+    container_name: ${USER_SERVICE_CONTAINER_NAME}
+    ports:
+      - "${USER_SERVICE_PORT}:${USER_SERVICE_PORT}"
+    environment:
+      PORT: ${USER_SERVICE_PORT}
+    networks: [dockeropt-network]
+    restart: unless-stopped
+    mem_limit: ${USER_SERVICE_MEM_LIMIT}
+    cpus: '${USER_SERVICE_CPUS}'
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:${USER_SERVICE_PORT}/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  product-service:
+    build: ${PRODUCT_SERVICE_IMAGE}
+    container_name: ${PRODUCT_SERVICE_CONTAINER_NAME}
+    ports:
+      - "${PRODUCT_SERVICE_PORT}:${PRODUCT_SERVICE_PORT}"
+    environment:
+      PORT: ${PRODUCT_SERVICE_PORT}
+    networks: [dockeropt-network]
+    restart: unless-stopped
+    mem_limit: ${PRODUCT_SERVICE_MEM_LIMIT}
+    cpus: '${PRODUCT_SERVICE_CPUS}'
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:${PRODUCT_SERVICE_PORT}/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  notification-service:
+    build: ${NOTIFICATION_SERVICE_IMAGE}
+    container_name: ${NOTIFICATION_SERVICE_CONTAINER_NAME}
+    ports:
+      - "${NOTIFICATION_SERVICE_PORT}:${NOTIFICATION_SERVICE_PORT}"
+    environment:
+      PORT: ${NOTIFICATION_SERVICE_PORT}
+    networks: [dockeropt-network]
+    restart: unless-stopped
+    mem_limit: ${NOTIFICATION_SERVICE_MEM_LIMIT}
+    cpus: '${NOTIFICATION_SERVICE_CPUS}'
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:${NOTIFICATION_SERVICE_PORT}/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  postgres:
+    image: ${POSTGRES_IMAGE}
+    container_name: ${POSTGRES_CONTAINER_NAME}
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - dockeropt-postgres-data:/var/lib/postgresql/data
+    networks: [dockeropt-network]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  node-exporter:
+    image: ${NODE_EXPORTER_IMAGE}
+    container_name: ${NODE_EXPORTER_CONTAINER_NAME}
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--path.rootfs=/rootfs'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    ports:
+      - "${NODE_EXPORTER_PORT}:9100"
+    networks: [dockeropt-network]
+    restart: unless-stopped
+
+  cadvisor:
+    image: ${CADVISOR_IMAGE}
+    container_name: ${CADVISOR_CONTAINER_NAME}
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    ports:
+      - "${CADVISOR_PORT}:8080"
+    networks: [dockeropt-network]
+    restart: unless-stopped
+    privileged: true
+
+  prometheus:
+    image: ${PROMETHEUS_IMAGE}
+    container_name: ${PROMETHEUS_CONTAINER_NAME}
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alert.rules.yml:/etc/prometheus/alert.rules.yml:ro
+      - prometheus-data:/prometheus
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=${PROMETHEUS_RETENTION}'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    ports:
+      - "${PROMETHEUS_PORT}:9090"
+    networks: [dockeropt-network]
+    restart: unless-stopped
+    depends_on:
+      - cadvisor
+      - node-exporter
+
+  dockeropt-backend:
+    build: ${DOCKEROPT_BACKEND_IMAGE}
+    container_name: ${DOCKEROPT_BACKEND_CONTAINER_NAME}
+    ports:
+      - "${DOCKEROPT_BACKEND_PORT}:${DOCKEROPT_BACKEND_INTERNAL_PORT}"
+    environment:
+      PORT: ${DOCKEROPT_BACKEND_INTERNAL_PORT}
+      PROMETHEUS_URL: ${PROMETHEUS_URL}
+      DOCKER_HOST: ${DOCKER_HOST}
+      DATABASE_URL: ${DATABASE_URL}
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_POOL_MAX: ${DB_POOL_MAX}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_SECURE: ${SMTP_SECURE}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      SMTP_FROM: ${SMTP_FROM}
+      ALERT_EMAIL_TO: ${ALERT_EMAIL_TO}
+      ALERT_CHECK_INTERVAL_MS: ${ALERT_CHECK_INTERVAL_MS}
+      PLATFORM_URL: ${PLATFORM_URL}
+      PLATFORM_INFRA_CONTAINERS: ${PLATFORM_INFRA_CONTAINERS}
+      RECO_WINDOW_MS: ${RECO_WINDOW_MS}
+      RECO_MIN_SAMPLES: ${RECO_MIN_SAMPLES}
+      OPTIMIZATION_COOLDOWN_MS: ${OPTIMIZATION_COOLDOWN_MS}
+      SECURITY_SCAN_TIMEOUT_MS: ${SECURITY_SCAN_TIMEOUT_MS}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks: [dockeropt-network]
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      prometheus:
+        condition: service_started
+
+  dockeropt-frontend:
+    build: ${DOCKEROPT_FRONTEND_IMAGE}
+    container_name: ${DOCKEROPT_FRONTEND_CONTAINER_NAME}
+    ports:
+      - "${DOCKEROPT_FRONTEND_PORT}:80"
+    environment:
+      API_URL: ${DOCKEROPT_FRONTEND_API_URL}
+    networks: [dockeropt-network]
+    restart: unless-stopped
+    depends_on:
+      - dockeropt-backend
+
+  load-generator:
+    build: ${LOAD_GENERATOR_IMAGE}
+    container_name: ${LOAD_GENERATOR_CONTAINER_NAME}
+    environment:
+      API_GATEWAY_URL: ${LOAD_GENERATOR_API_GATEWAY_URL}
+    networks: [dockeropt-network]
+    restart: unless-stopped
+    mem_limit: ${LOAD_GENERATOR_MEM_LIMIT}
+    cpus: '${LOAD_GENERATOR_CPUS}'
+    depends_on:
+      - api-gateway
+    profiles: [test]
