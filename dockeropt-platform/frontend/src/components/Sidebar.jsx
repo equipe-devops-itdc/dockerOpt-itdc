@@ -25,7 +25,6 @@ export default function Sidebar({
   onChange,
   alertCount = 0,
   newServicesCount = 0,
-  securityCriticalCount = 0,
   isOpen = false,
   onClose,
   collapsed = false,
@@ -55,7 +54,10 @@ export default function Sidebar({
               {group.items.map((item) => {
                 const isActive = active === item.id
                 const Icon = item.icon
-                const badge = item.id === 'alerts' ? alertCount : item.id === 'services' ? newServicesCount : item.id === 'security' ? securityCriticalCount : 0
+                // Sécurité n'affiche plus de compteur : le terminal de scan (onglet
+                // Sécurité) montre déjà l'état en direct, un badge numérique ici
+                // ferait doublon et n'a plus de sens avec un scan à la demande.
+                const badge = item.id === 'alerts' ? alertCount : item.id === 'services' ? newServicesCount : 0
                 return (
                   <button
                     key={item.id}
@@ -74,7 +76,7 @@ export default function Sidebar({
                     {badge > 0 && (
                       <span
                         className={`ml-auto text-[10px] font-mono font-semibold rounded-full px-1.5 py-0.5 ${
-                          ['alerts', 'security'].includes(item.id) ? 'bg-signal-red/15 text-signal-red' : 'bg-signal-accent/15 text-signal-accent'
+                          item.id === 'alerts' ? 'bg-signal-red/15 text-signal-red' : 'bg-signal-accent/15 text-signal-accent'
                         }`}
                       >
                         {badge}
@@ -117,7 +119,8 @@ export default function Sidebar({
         {NAV.map((item) => {
           const isActive = active === item.id
           const Icon = item.icon
-          const badge = item.id === 'alerts' ? alertCount : item.id === 'services' ? newServicesCount : item.id === 'security' ? securityCriticalCount : 0
+          // Même règle qu'en vue complète : pas de badge pour Sécurité.
+          const badge = item.id === 'alerts' ? alertCount : item.id === 'services' ? newServicesCount : 0
           return (
             <button
               key={item.id}
@@ -134,7 +137,7 @@ export default function Sidebar({
               {badge > 0 && (
                 <span
                   className={`absolute top-1 right-1 h-1.5 w-1.5 rounded-full ${
-                    ['alerts', 'security'].includes(item.id) ? 'bg-signal-red' : 'bg-signal-accent'
+                    item.id === 'alerts' ? 'bg-signal-red' : 'bg-signal-accent'
                   }`}
                 />
               )}
