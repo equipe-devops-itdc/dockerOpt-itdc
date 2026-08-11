@@ -1,9 +1,9 @@
 # 🐳 DockerOpt - Optimisation des Ressources pour Architectures Microservices
 
-## 📋 Description
+## Description
 Plateforme d'analyse, de surveillance et d'optimisation de l'utilisation des ressources système pour les applications microservices déployées sous Docker.
 
-## 🏗️ Architecture
+## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -23,7 +23,7 @@ Plateforme d'analyse, de surveillance et d'optimisation de l'utilisation des res
 └───┬───┘ └───────┘ └───────┘ └──────────────────┘
     │
 ┌───▼──────────────────────────────────────────────────────────┐
-│                    📊 Monitoring Stack                        │
+│                    Monitoring Stack                        │
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐                    │
 │  │Prometheus│  │cAdvisor  │  │Node      │                    │
 │  │:9090     │  │:8081     │  │Exporter  │                    │
@@ -32,7 +32,7 @@ Plateforme d'analyse, de surveillance et d'optimisation de l'utilisation des res
 └──────────────────────────────────────────────────────────────┘
 ```
 
-## 🚀 Architecture Détaillée
+## Architecture Détaillée
 
 ### Microservices (Node.js/Express)
 | Service | Rôle | Port |
@@ -57,28 +57,28 @@ Plateforme d'analyse, de surveillance et d'optimisation de l'utilisation des res
 
 ## 🛠️ Fonctionnalités
 
-### 📊 Supervision en Temps Réel
+### Supervision en Temps Réel
 - Utilisation CPU par conteneur
 - Mémoire RAM (usage, limite, %)
 - Trafic réseau (Rx/Tx)
 - Latence des requêtes HTTP
 - État de santé des services
 
-### ⚡ Optimisation Intelligente
+###  Optimisation Intelligente
 - Analyse de l'efficacité des ressources
 - Recommandations automatiques :
-  - 🔼 Augmentation CPU/Mémoire si > 80%
-  - 🔽 Réduction CPU/Mémoire si < 30%
+  -  Augmentation CPU/Mémoire si > 80%
+  -  Réduction CPU/Mémoire si < 30%
 - Application en un clic
 - Prédictions de charge (H+1, H+6, H+24)
 
-### 🔔 Alerting
+###  Alerting
 - Seuils CPU élevés (warning > 80%, critical > 90%)
 - Seuils mémoire élevés (warning > 80%, critical > 90%)
 - Détection de services down
 - Alertes de latence élevée
 
-## 🚀 Démarrage Rapide
+## Démarrage Rapide
 
 ### Prérequis
 - Docker 24+ 
@@ -115,7 +115,7 @@ docker-compose down
 docker-compose down -v
 ```
 
-## 📈 API Endpoints
+## API Endpoints
 
 ### DockerOpt Backend (port 5000)
 | Endpoint | Description |
@@ -129,7 +129,7 @@ docker-compose down -v
 | `POST /api/optimize/apply` | Appliquer une optimisation |
 | `GET /api/predict/resource/:name` | Prédictions de charge |
 
-## 📊 Accès aux Interfaces
+##  Accès aux Interfaces
 
 | Interface | URL | Credentials |
 |-----------|-----|-------------|
@@ -137,11 +137,11 @@ docker-compose down -v
 | Prometheus | http://localhost:9090 | - |
 | cAdvisor | http://localhost:8081 | - |
 
-⚠️ **Avant toute mise en production**, changez `ADMIN_EMAIL`, `ADMIN_PASSWORD`
+**Avant toute mise en production**, changez `ADMIN_EMAIL`, `ADMIN_PASSWORD`
 et `JWT_SECRET` dans `docker-compose.yml` (service `dockeropt-backend`) —
 les valeurs par défaut ne sont là que pour démarrer rapidement en local.
 
-## 📧 Notifications par email (optionnel)
+## Notifications par email (optionnel)
 
 Pour activer les alertes par email, renseignez ces variables dans
 `docker-compose.yml` (service `dockeropt-backend`) :
@@ -161,7 +161,7 @@ curl -X POST http://localhost:5000/api/notifications/test-email \
   -H "Authorization: Bearer <votre jeton>"
 ```
 
-## 🎯 Scénarios de Test
+## Scénarios de Test
 
 ### 1. Test d'optimisation CPU
 ```bash
@@ -181,7 +181,7 @@ curl http://localhost:5000/api/optimize/recommendations | jq .
 docker-compose --profile test up -d load-generator
 ```
 
-## 🔧 Dépannage
+##  Dépannage
 
 ### Prometheus n'est pas prêt
 ```bash
@@ -200,7 +200,7 @@ curl http://localhost:9090/api/v1/targets
 docker-compose restart dockeropt-backend
 ```
 
-## 📚 Structure du Projet
+##  Structure du Projet
 
 ```
 dockeropt/
@@ -222,7 +222,7 @@ dockeropt/
     └── dashboards/             # Dashboards pré-configurés
 ```
 
-## 📝 Licence
+##  Licence
 Projet académique - Master 2 Informatique
 
 ## Configuration sécurisée
