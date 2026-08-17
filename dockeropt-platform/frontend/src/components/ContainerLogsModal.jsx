@@ -1,50 +1,56 @@
-import { useEffect, useState } from 'react'
-import { X, Terminal, History, Loader2, RefreshCw, Cpu, MemoryStick } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { X, Terminal, Loader2, RadioTower } from 'lucide-react'
 import { api } from '../lib/api'
 
-const TYPE_ICON = { cpu: Cpu, memory: MemoryStick }
+// Fréquence de rafraîchissement du journal pendant que la modale est
+// ouverte — assez rapide pour donner l'impression d'un suivi en direct
+// (façon `docker logs -f`), sans bombarder le backend de requêtes.
+const POLL_INTERVAL_MS = 3000
 
 export default function ContainerLogsModal({ container, onClose }) {
-  const [tab, setTab] = useState('logs')
   const [logs, setLogs] = useState(null)
   const [logsError, setLogsError] = useState(null)
   const [logsLoading, setLogsLoading] = useState(false)
-  const [detections, setDetections] = useState(null)
-  const [detectionsError, setDetectionsError] = useState(null)
+  const scrollRef = useRef(null)
 
-  const loadLogs = async () => {
+  const loadLogs = async (silent = false) => {
     if (!container) return
-    setLogsLoading(true)
-    setLogsError(null)
+    if (!silent) setLogsLoading(true)
     try {
       const data = await api.containerLogs(container.id, container.host || 'local')
       setLogs(data.lines)
+      setLogsError(null)
     } catch (err) {
       setLogsError(err.message || 'Indisponible')
     } finally {
-      setLogsLoading(false)
+      if (!silent) setLogsLoading(false)
     }
   }
 
-  const loadDetections = async () => {
-    if (!container) return
-    try {
-      const data = await api.optimizationLogs(container.name)
-      setDetections(data)
-      setDetectionsError(null)
-    } catch (err) {
-      setDetectionsError(err.message || 'Indisponible')
-    }
-  }
-
+  // Chargement initial à l'ouverture, puis suivi en temps réel : tant que
+  // la modale reste ouverte sur ce conteneur, on repolle silencieusement
+  // (sans montrer le loader) pour que TOUTE nouvelle action du conteneur
+  // (redémarrage, écriture applicative, etc.) apparaisse sans action de
+  // l'utilisateur. L'intervalle s'arrête proprement à la fermeture ou au
+  // changement de conteneur.
   useEffect(() => {
     if (!container) return
     setLogs(null)
-    setDetections(null)
-    loadLogs()
-    loadDetections()
+    setLogsError(null)
+    loadLogs(false)
+
+    const interval = setInterval(() => loadLogs(true), POLL_INTERVAL_MS)
+    return () => clearInterval(interval)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [container])
+
+  // Défile automatiquement vers la dernière ligne à chaque nouvelle entrée,
+  // comme un vrai terminal qui suit le flux.
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+    }
+  }, [logs])
 
   if (!container) return null
 
@@ -62,89 +68,31 @@ export default function ContainerLogsModal({ container, onClose }) {
           </button>
         </div>
 
-        <div className="flex items-center gap-1 px-5 pt-3 border-b border-ink-500 shrink-0">
-          <button
-            onClick={() => setTab('logs')}
-            className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
-              tab === 'logs' ? 'border-signal-accent text-signal-accent' : 'border-transparent text-text-faint hover:text-text'
-            }`}
-          >
+        <div className="flex items-center justify-between px-5 pt-3 pb-2 border-b border-ink-500 shrink-0">
+          <div className="flex items-center gap-1.5 text-sm font-medium text-signal-accent">
             <Terminal size={14} /> Journal du conteneur
-          </button>
-          <button
-            onClick={() => setTab('detections')}
-            className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
-              tab === 'detections' ? 'border-signal-accent text-signal-accent' : 'border-transparent text-text-faint hover:text-text'
-            }`}
-          >
-            <History size={14} /> Détections d'optimisation
-            {detections?.length > 0 && (
-              <span className="text-[10px] font-mono bg-ink-600 text-text-dim rounded-full px-1.5 py-0.5">{detections.length}</span>
-            )}
-          </button>
+          </div>
+          <div className="flex items-center gap-1.5 text-[11px] font-mono text-text-faint">
+            <RadioTower size={12} className="text-signal-accent animate-pulse" />
+            suivi en direct
+          </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto">
-          {tab === 'logs' && (
-            <div>
-              <div className="flex items-center justify-end px-5 pt-3">
-                <button onClick={loadLogs} disabled={logsLoading} className="btn-ghost !py-1 !px-2.5 text-xs">
-                  <RefreshCw size={12} className={logsLoading ? 'animate-spin' : ''} /> Rafraîchir
-                </button>
-              </div>
-              <div className="px-5 pb-5 pt-2">
-                {logsLoading && !logs ? (
-                  <div className="flex items-center justify-center gap-2 text-text-faint text-sm py-10">
-                    <Loader2 size={16} className="animate-spin" /> Chargement des journaux…
-                  </div>
-                ) : logsError ? (
-                  <div className="text-sm text-signal-red bg-signal-red/10 border border-signal-red/20 rounded-lg px-3.5 py-2.5">
-                    {logsError}
-                  </div>
-                ) : !logs?.length ? (
-                  <div className="text-sm text-text-faint text-center py-10">Aucune sortie récente pour ce conteneur</div>
-                ) : (
-                  <pre className="bg-ink-950 border border-ink-500 rounded-lg p-3.5 text-[11px] leading-relaxed font-mono text-text-dim overflow-x-auto max-h-[45vh] whitespace-pre-wrap break-all">
-                    {logs.join('\n')}
-                  </pre>
-                )}
-              </div>
+        <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 pb-5 pt-3">
+          {logsLoading && !logs ? (
+            <div className="flex items-center justify-center gap-2 text-text-faint text-sm py-10">
+              <Loader2 size={16} className="animate-spin" /> Chargement des journaux…
             </div>
-          )}
-
-          {tab === 'detections' && (
-            <div className="px-5 py-4">
-              {detectionsError ? (
-                <div className="text-sm text-signal-red bg-signal-red/10 border border-signal-red/20 rounded-lg px-3.5 py-2.5">
-                  {detectionsError}
-                </div>
-              ) : !detections?.length ? (
-                <div className="text-sm text-text-faint text-center py-10">
-                  Aucune optimisation détectée pour ce conteneur pour le moment
-                </div>
-              ) : (
-                <div className="divide-y divide-ink-600/50 -mx-5">
-                  {detections.map((d, i) => {
-                    const Icon = TYPE_ICON[d.type] || Cpu
-                    return (
-                      <div key={i} className="flex items-start gap-3 px-5 py-3">
-                        <div className={`h-7 w-7 rounded-full flex items-center justify-center shrink-0 ${
-                          d.severity === 'critical' ? 'bg-signal-red/10 text-signal-red' : d.severity === 'warning' ? 'bg-signal-amber/10 text-signal-amber' : 'bg-signal-blue/10 text-signal-blue'
-                        }`}>
-                          <Icon size={13} />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="text-sm text-text">{d.suggestion}</div>
-                          <div className="text-xs text-text-faint mt-0.5">
-                            Cause : {d.cause} · {new Date(d.timestamp).toLocaleString('fr-FR')}
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
+          ) : logsError ? (
+            <div className="text-sm text-signal-red bg-signal-red/10 border border-signal-red/20 rounded-lg px-3.5 py-2.5">
+              {logsError}
             </div>
+          ) : !logs?.length ? (
+            <div className="text-sm text-text-faint text-center py-10">Aucune sortie récente pour ce conteneur</div>
+          ) : (
+            <pre className="bg-ink-950 border border-ink-500 rounded-lg p-3.5 text-[11px] leading-relaxed font-mono text-text-dim overflow-x-auto max-h-[55vh] whitespace-pre-wrap break-all">
+              {logs.join('\n')}
+            </pre>
           )}
         </div>
       </div>
