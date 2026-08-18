@@ -24,10 +24,9 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-
-  BACKEND_IMAGE: ghcr.io/${{ github.repository_owner }}/dockeropt-backend
-
-  FRONTEND_IMAGE: ghcr.io/${{ github.repository_owner }}/dockeropt-frontend
+  # tolower() garantit que l'image GHCR est toujours en minuscules
+  BACKEND_IMAGE: ghcr.io/${{ tolower(github.repository_owner) }}/dockeropt-backend
+  FRONTEND_IMAGE: ghcr.io/${{ tolower(github.repository_owner) }}/dockeropt-frontend
 
 
 # ==========================================================
@@ -225,13 +224,11 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
 
-      - name: Vérification de l'image Backend
-        run: |
-          docker pull ${{ env.BACKEND_IMAGE }}:${{ github.sha }}
-
-
       - name: Scan Trivy Backend
         uses: aquasecurity/trivy-action@0.36.0
+        env:
+          TRIVY_USERNAME: ${{ github.actor }}
+          TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         with:
           image-ref: ${{ env.BACKEND_IMAGE }}:${{ github.sha }}
           format: table
@@ -269,13 +266,11 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
 
-      - name: Vérification de l'image Frontend
-        run: |
-          docker pull ${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
-
-
       - name: Scan Trivy Frontend
         uses: aquasecurity/trivy-action@0.36.0
+        env:
+          TRIVY_USERNAME: ${{ github.actor }}
+          TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         with:
           image-ref: ${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
           format: table
