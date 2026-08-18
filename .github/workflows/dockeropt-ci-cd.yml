@@ -218,54 +218,38 @@ jobs:
           vuln-type: os,library
           severity: HIGH,CRITICAL
 
-  # ========================================================
-  # 7. DÉPLOIEMENT DOCKER STANDALONE
+ # ========================================================
+  # 7. DÉPLOIEMENT EN LOCAL SUR KALI LINUX
   # ========================================================
   deploy:
-    name: Déploiement Docker Standalone
-    runs-on: ubuntu-latest
+    name: Déploiement Local Kali Linux
+    runs-on: self-hosted
     needs:
       - scan-backend
       - scan-frontend
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
     steps:
-      - name: Connexion SSH au serveur Docker
-        uses: appleboy/ssh-action@v1.2.2
-        with:
-          host: ${{ secrets.DOCKER_HOST }}
-          username: ${{ secrets.DOCKER_USER }}
-          key: ${{ secrets.DOCKER_SSH_KEY }}
-          script: |
-            set -e
-            echo "======================================"
-            echo "       DockerOpt CI/CD"
-            echo "======================================"
-            echo "Serveur Docker connecté"
+      - name: Déploiement Docker Compose
+        run: |
+          set -e
+          echo "======================================"
+          echo "  Déploiement DockerOpt sur Kali"
+          echo "======================================"
 
-            cd /opt/dockeropt
-            echo "Répertoire du projet : $(pwd)"
+          # Se placer dans le répertoire du projet sur votre machine
+          cd ~/dockeropt-platform
 
-            echo "Connexion à GitHub Container Registry"
-            echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io \
-              --username "${{ secrets.GHCR_USERNAME }}" \
-              --password-stdin
+          # Connexion à GHCR
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io \
+            -u "${{ github.actor }}" \
+            --password-stdin
 
-            echo "Téléchargement des images"
-            docker pull ${{ env.BACKEND_IMAGE }}:latest
-            docker pull ${{ env.FRONTEND_IMAGE }}:latest
+          # Récupération et redémarrage
+          docker pull ${{ env.BACKEND_IMAGE }}:latest
+          docker pull ${{ env.FRONTEND_IMAGE }}:latest
+          docker compose up -d dockeropt-backend dockeropt-frontend
 
-            echo "Redémarrage des services DockerOpt"
-            docker compose up -d dockeropt-backend dockeropt-frontend
-
-            echo "Attente du démarrage..."
-            sleep 15
-
-            echo "État des conteneurs :"
-            docker compose ps
-
-            echo "Nettoyage des anciennes images..."
-            docker image prune -f
-
-            echo "======================================"
-            echo " Déploiement terminé avec succès"
-            echo "======================================"
+          # Nettoyage
+          docker image prune -f
+          echo "Déploiement exécuté avec succès !"
