@@ -19,13 +19,8 @@ permissions:
 # ==========================================================
 env:
   REGISTRY: ghcr.io
-  
-  # ⚠️ ATTENTION : Remplacez "votre_pseudo" par votre vrai nom d'utilisateur GitHub TOUT EN MINUSCULES
   BACKEND_IMAGE: ghcr.io/equipe-devops-itdc/dockeropt-backend
-  
-  # ⚠️ ATTENTION : Remplacez "votre_pseudo" par votre vrai nom d'utilisateur GitHub TOUT EN MINUSCULES
   FRONTEND_IMAGE: ghcr.io/equipe-devops-itdc/dockeropt-frontend
-
 
 # ==========================================================
 # JOBS
@@ -218,7 +213,7 @@ jobs:
           vuln-type: os,library
           severity: HIGH,CRITICAL
 
- # ========================================================
+  # ========================================================
   # 7. DÉPLOIEMENT DOCKER STANDALONE
   # ========================================================
   deploy:
@@ -230,6 +225,10 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
+      - name: Créer le fichier .env sur le serveur
+        run: |
+          echo "${{ secrets.ENV_FILE }}" > /home/joel/Documents/devOpss/dockeropt/.env
+
       - name: Déploiement Docker Compose
         run: |
           set -e
@@ -239,17 +238,17 @@ jobs:
 
           cd /home/joel/Documents/devOpss/dockeropt
 
-          # Connexion à GHCR via le PAT au lieu du GITHUB_TOKEN
+          # Connexion à GHCR via le PAT
           echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io \
             -u "${{ github.actor }}" \
             --password-stdin
 
-          echo "Pull des images..."
+          echo "Pull des dernières images..."
           docker pull ${{ env.BACKEND_IMAGE }}:latest
           docker pull ${{ env.FRONTEND_IMAGE }}:latest
 
-          echo "Démarrage des conteneurs..."
-          docker compose up -d --no-build dockeropt-backend dockeropt-frontend
+          echo "Démarrage de tous les conteneurs..."
+          docker compose up -d --no-build
 
           docker image prune -f
 
