@@ -30,6 +30,51 @@ Plateforme d'analyse, de surveillance et d'optimisation de l'utilisation des res
 │  └──────────┘  └──────────┘  │:9100     │                    │
 │                               └──────────┘                    │
 └──────────────────────────────────────────────────────────────┘
+
+
+                         GitHub
+                            │
+                            │ push main
+                            ▼
+                    GitHub Actions
+                            │
+              ┌─────────────┴─────────────┐
+              │                           │
+              ▼                           ▼
+       Test Backend                Test Frontend
+              │                           │
+              ▼                           ▼
+       Build Backend                Build Frontend
+              │                           │
+              ▼                           ▼
+          GHCR image                   GHCR image
+              │                           │
+              ▼                           ▼
+         Trivy Scan                  Trivy Scan
+              │                           │
+              └─────────────┬─────────────┘
+                            │
+                            ▼
+                       SSH Deploy
+                            │
+                            ▼
+                    Docker Standalone
+                            │
+                  ┌─────────┴─────────┐
+                  ▼                   ▼
+            Backend :5000       Frontend :8080
+                  │
+                  ▼
+              PostgreSQL
+                  │
+                  ▼
+              Prometheus
+                  │
+                  ▼
+              cAdvisor
+                  │
+                  ▼
+             Docker Host
 ```
 
 ## Architecture Détaillée
