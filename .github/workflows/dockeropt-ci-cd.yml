@@ -49,17 +49,9 @@ jobs:
 
     steps:
 
-      # ----------------------------------------------------
-      # Récupération du projet
-      # ----------------------------------------------------
-
       - name: Récupération du code
         uses: actions/checkout@v4
 
-
-      # ----------------------------------------------------
-      # Installation Node.js
-      # ----------------------------------------------------
 
       - name: Installation Node.js
         uses: actions/setup-node@v4
@@ -69,18 +61,10 @@ jobs:
           cache-dependency-path: dockeropt-platform/backend/package-lock.json
 
 
-      # ----------------------------------------------------
-      # Installation dépendances
-      # ----------------------------------------------------
-
       - name: Installation des dépendances Backend
         working-directory: dockeropt-platform/backend
         run: npm ci
 
-
-      # ----------------------------------------------------
-      # Tests Jest
-      # ----------------------------------------------------
 
       - name: Exécution des tests Backend
         working-directory: dockeropt-platform/backend
@@ -88,7 +72,7 @@ jobs:
 
 
   # ========================================================
-  # 2. TEST + BUILD FRONTEND
+  # 2. TEST ET BUILD FRONTEND
   # ========================================================
 
   test-frontend:
@@ -99,17 +83,9 @@ jobs:
 
     steps:
 
-      # ----------------------------------------------------
-      # Récupération du projet
-      # ----------------------------------------------------
-
       - name: Récupération du code
         uses: actions/checkout@v4
 
-
-      # ----------------------------------------------------
-      # Installation Node.js
-      # ----------------------------------------------------
 
       - name: Installation Node.js
         uses: actions/setup-node@v4
@@ -119,18 +95,10 @@ jobs:
           cache-dependency-path: dockeropt-platform/frontend/package-lock.json
 
 
-      # ----------------------------------------------------
-      # Installation dépendances
-      # ----------------------------------------------------
-
       - name: Installation des dépendances Frontend
         working-directory: dockeropt-platform/frontend
         run: npm ci
 
-
-      # ----------------------------------------------------
-      # Build Frontend
-      # ----------------------------------------------------
 
       - name: Build Frontend
         working-directory: dockeropt-platform/frontend
@@ -156,17 +124,9 @@ jobs:
 
     steps:
 
-      # ----------------------------------------------------
-      # Récupération du projet
-      # ----------------------------------------------------
-
       - name: Récupération du code
         uses: actions/checkout@v4
 
-
-      # ----------------------------------------------------
-      # Connexion GHCR
-      # ----------------------------------------------------
 
       - name: Connexion à GitHub Container Registry
         uses: docker/login-action@v3
@@ -176,17 +136,9 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
 
-      # ----------------------------------------------------
-      # Docker Buildx
-      # ----------------------------------------------------
-
       - name: Configuration Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-
-      # ----------------------------------------------------
-      # Build + Push Backend
-      # ----------------------------------------------------
 
       - name: Build et Push de l'image Backend
         uses: docker/build-push-action@v6
@@ -194,7 +146,6 @@ jobs:
           context: ./dockeropt-platform/backend
           file: ./dockeropt-platform/backend/Dockerfile
           push: true
-
           tags: |
             ${{ env.BACKEND_IMAGE }}:${{ github.sha }}
             ${{ env.BACKEND_IMAGE }}:latest
@@ -219,17 +170,9 @@ jobs:
 
     steps:
 
-      # ----------------------------------------------------
-      # Récupération du projet
-      # ----------------------------------------------------
-
       - name: Récupération du code
         uses: actions/checkout@v4
 
-
-      # ----------------------------------------------------
-      # Connexion GHCR
-      # ----------------------------------------------------
 
       - name: Connexion à GitHub Container Registry
         uses: docker/login-action@v3
@@ -239,17 +182,9 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
 
-      # ----------------------------------------------------
-      # Docker Buildx
-      # ----------------------------------------------------
-
       - name: Configuration Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-
-      # ----------------------------------------------------
-      # Build + Push Frontend
-      # ----------------------------------------------------
 
       - name: Build et Push de l'image Frontend
         uses: docker/build-push-action@v6
@@ -257,7 +192,6 @@ jobs:
           context: ./dockeropt-platform/frontend
           file: ./dockeropt-platform/frontend/Dockerfile
           push: true
-
           tags: |
             ${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
             ${{ env.FRONTEND_IMAGE }}:latest
@@ -278,66 +212,33 @@ jobs:
 
     permissions:
       contents: read
+      packages: read
       security-events: write
 
     steps:
 
-      # ----------------------------------------------------
-      # Scan Backend
-      # ----------------------------------------------------
-
-      - name: Scan des vulnérabilités Backend
-        uses: aquasecurity/trivy-action@v0.36.0
+      - name: Connexion à GitHub Container Registry
+        uses: docker/login-action@v3
         with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
+
+      - name: Vérification de l'image Backend
+        run: |
+          docker pull ${{ env.BACKEND_IMAGE }}:${{ github.sha }}
+
+
+      - name: Scan Trivy Backend
+        uses: aquasecurity/trivy-action@0.36.0
+        with:
           image-ref: ${{ env.BACKEND_IMAGE }}:${{ github.sha }}
-
           format: table
-
-          # TEMPORAIRE :
-          # permet de voir les vulnérabilités
-          # sans bloquer le pipeline
-
           exit-code: 0
-
           ignore-unfixed: true
-
           vuln-type: os,library
-
           severity: HIGH,CRITICAL
-
-
-      # ----------------------------------------------------
-      # Rapport SARIF Backend
-      # ----------------------------------------------------
-
-      - name: Génération du rapport Trivy Backend
-        uses: aquasecurity/trivy-action@v0.36.0
-        if: always()
-        with:
-
-          image-ref: ${{ env.BACKEND_IMAGE }}:${{ github.sha }}
-
-          format: sarif
-
-          output: trivy-backend.sarif
-
-          ignore-unfixed: true
-
-          vuln-type: os,library
-
-          severity: HIGH,CRITICAL
-
-
-      # ----------------------------------------------------
-      # Publication GitHub Security
-      # ----------------------------------------------------
-
-      - name: Publication du rapport Backend
-        uses: github/codeql-action/upload-sarif@v4
-        if: always()
-        with:
-          sarif_file: trivy-backend.sarif
 
 
   # ========================================================
@@ -355,65 +256,33 @@ jobs:
 
     permissions:
       contents: read
+      packages: read
       security-events: write
 
     steps:
 
-      # ----------------------------------------------------
-      # Scan Frontend
-      # ----------------------------------------------------
-
-      - name: Scan des vulnérabilités Frontend
-        uses: aquasecurity/trivy-action@v0.36.0
+      - name: Connexion à GitHub Container Registry
+        uses: docker/login-action@v3
         with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
+
+      - name: Vérification de l'image Frontend
+        run: |
+          docker pull ${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
+
+
+      - name: Scan Trivy Frontend
+        uses: aquasecurity/trivy-action@0.36.0
+        with:
           image-ref: ${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
-
           format: table
-
-          # Temporairement à 0
-          # pour analyser les vulnérabilités
-
           exit-code: 0
-
           ignore-unfixed: true
-
           vuln-type: os,library
-
           severity: HIGH,CRITICAL
-
-
-      # ----------------------------------------------------
-      # Rapport SARIF Frontend
-      # ----------------------------------------------------
-
-      - name: Génération du rapport Trivy Frontend
-        uses: aquasecurity/trivy-action@v0.36.0
-        if: always()
-        with:
-
-          image-ref: ${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
-
-          format: sarif
-
-          output: trivy-frontend.sarif
-
-          ignore-unfixed: true
-
-          vuln-type: os,library
-
-          severity: HIGH,CRITICAL
-
-
-      # ----------------------------------------------------
-      # Publication GitHub Security
-      # ----------------------------------------------------
-
-      - name: Publication du rapport Frontend
-        uses: github/codeql-action/upload-sarif@v4
-        if: always()
-        with:
-          sarif_file: trivy-frontend.sarif
 
 
   # ========================================================
@@ -430,19 +299,12 @@ jobs:
       - scan-backend
       - scan-frontend
 
-    # Déploiement uniquement après un push sur main
-
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
 
-      # ----------------------------------------------------
-      # Connexion SSH au serveur Docker
-      # ----------------------------------------------------
-
-      - name: Connexion au serveur Docker Standalone
+      - name: Connexion SSH au serveur Docker
         uses: appleboy/ssh-action@v1.2.2
-
         with:
 
           host: ${{ secrets.DOCKER_HOST }}
@@ -484,21 +346,24 @@ jobs:
 
 
             # ------------------------------------------------
-            # Télécharger les nouvelles images
+            # Téléchargement des images
             # ------------------------------------------------
 
-            echo "Téléchargement des nouvelles images..."
+            echo "Téléchargement de l'image Backend"
 
-            docker compose pull \
-              dockeropt-backend \
-              dockeropt-frontend
+            docker pull ${{ env.BACKEND_IMAGE }}:latest
+
+
+            echo "Téléchargement de l'image Frontend"
+
+            docker pull ${{ env.FRONTEND_IMAGE }}:latest
 
 
             # ------------------------------------------------
-            # Redémarrage Backend + Frontend
+            # Déploiement
             # ------------------------------------------------
 
-            echo "Redémarrage des services..."
+            echo "Redémarrage des services DockerOpt"
 
             docker compose up -d \
               dockeropt-backend \
@@ -506,16 +371,16 @@ jobs:
 
 
             # ------------------------------------------------
-            # Attente
+            # Attente du démarrage
             # ------------------------------------------------
 
-            echo "Attente du démarrage des services..."
+            echo "Attente du démarrage..."
 
             sleep 15
 
 
             # ------------------------------------------------
-            # Vérification
+            # Vérification des conteneurs
             # ------------------------------------------------
 
             echo "État des conteneurs :"
@@ -527,7 +392,7 @@ jobs:
             # Vérification Backend
             # ------------------------------------------------
 
-            echo "Vérification Backend..."
+            echo "État du Backend :"
 
             docker inspect \
               --format='{{.State.Status}}' \
@@ -538,7 +403,7 @@ jobs:
             # Vérification Frontend
             # ------------------------------------------------
 
-            echo "Vérification Frontend..."
+            echo "État du Frontend :"
 
             docker inspect \
               --format='{{.State.Status}}' \
