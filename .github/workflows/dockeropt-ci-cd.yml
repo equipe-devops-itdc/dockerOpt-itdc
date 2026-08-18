@@ -221,6 +221,9 @@ jobs:
  # ========================================================
   # 7. DÉPLOIEMENT EN LOCAL SUR KALI LINUX
   # ========================================================
+  # ========================================================
+  # 7. DÉPLOIEMENT DOCKER STANDALONE
+  # ========================================================
   deploy:
     name: Déploiement Local Kali Linux
     runs-on: self-hosted
@@ -237,19 +240,20 @@ jobs:
           echo "  Déploiement DockerOpt sur Kali"
           echo "======================================"
 
-          # Se placer dans le répertoire du projet sur votre machine
-          cd ~/dockeropt-platform
+          # Navigation vers le vrai dossier du projet
+          cd /home/joel/Documents/devOpss/dockeropt
 
-          # Connexion à GHCR
+          # Connexion à GitHub Container Registry
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io \
             -u "${{ github.actor }}" \
             --password-stdin
 
-          # Récupération et redémarrage
-          docker pull ${{ env.BACKEND_IMAGE }}:latest
-          docker pull ${{ env.FRONTEND_IMAGE }}:latest
+          # Téléchargement et redémarrage des services
+          docker compose pull
           docker compose up -d dockeropt-backend dockeropt-frontend
 
-          # Nettoyage
+          # Nettoyage des anciennes images
           docker image prune -f
-          echo "Déploiement exécuté avec succès !"
+          echo "======================================"
+          echo " Déploiement terminé avec succès"
+          echo "======================================"
