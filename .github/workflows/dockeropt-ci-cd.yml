@@ -219,9 +219,6 @@ jobs:
           severity: HIGH,CRITICAL
 
  # ========================================================
-  # 7. DÉPLOIEMENT EN LOCAL SUR KALI LINUX
-  # ========================================================
-  # ========================================================
   # 7. DÉPLOIEMENT DOCKER STANDALONE
   # ========================================================
   deploy:
@@ -240,7 +237,6 @@ jobs:
           echo "  Déploiement DockerOpt sur Kali"
           echo "======================================"
 
-          # Navigation vers le vrai dossier du projet
           cd /home/joel/Documents/devOpss/dockeropt
 
           # Connexion à GitHub Container Registry
@@ -248,12 +244,19 @@ jobs:
             -u "${{ github.actor }}" \
             --password-stdin
 
-          # Téléchargement et redémarrage des services
-          docker compose pull
-          docker compose up -d dockeropt-backend dockeropt-frontend
+          # 1. Téléchargement explicite des images publiées sur GHCR
+          echo "Pull des images pré-buildées..."
+          docker pull ${{ env.BACKEND_IMAGE }}:latest
+          docker pull ${{ env.FRONTEND_IMAGE }}:latest
 
-          # Nettoyage des anciennes images
+          # 2. Lancement des conteneurs sans tenter de builder localement
+          echo "Démarrage des conteneurs..."
+          docker compose up -d --no-build dockeropt-backend dockeropt-frontend
+
+          # Nettoyage
           docker image prune -f
+
           echo "======================================"
-          echo " Déploiement terminé avec succès"
+          echo " État des conteneurs :"
+          docker compose ps
           echo "======================================"
