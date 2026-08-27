@@ -6,7 +6,7 @@ pipeline {
         DOCKER_TAG = "${BUILD_NUMBER}"
 
         // ==========================================================
-        // PostgreSQL — credentials globaux Jenkins
+        // PostgreSQL — credentials Jenkins
         // ==========================================================
         POSTGRES_HOST     = credentials('POSTGRES_HOST_ID')
         POSTGRES_PORT     = credentials('POSTGRES_PORT_ID')
@@ -124,8 +124,8 @@ NODE_EXPORTER_PORT=9100
 # ==========================================================
 # CADVISOR
 # IMPORTANT:
-# 8081 is already used by Apache/httpd.
-# cAdvisor is therefore exposed on host port 8082.
+# Apache utilise deja le port 8081.
+# On utilise donc le port 8082 pour cAdvisor.
 # ==========================================================
 
 CADVISOR_IMAGE=gcr.io/cadvisor/cadvisor:latest
@@ -156,7 +156,6 @@ PROMETHEUS_DATA_VOLUME=prometheus-data
 POSTGRES_IMAGE=postgres:16-alpine
 POSTGRES_CONTAINER_NAME=dockeropt-postgres
 
-# Port exposé sur le serveur hôte
 POSTGRES_PORT=${POSTGRES_PORT}
 
 POSTGRES_DB=dockeropt
@@ -167,9 +166,12 @@ POSTGRES_DATA_VOLUME=dockeropt-postgres-data
 
 
 # ==========================================================
-# DATABASE CONNECTION
+# DATABASE
 # IMPORTANT:
-# Entre conteneurs Docker, PostgreSQL écoute sur 5432.
+# Communication interne Docker:
+# postgres:5432
+#
+# Le port POSTGRES_PORT est uniquement le port HOST.
 # ==========================================================
 
 DB_HOST=postgres
@@ -274,6 +276,29 @@ LOAD_GENERATOR_MEM_LIMIT=128m
 LOAD_GENERATOR_CPUS=0.25
 
 EOF
+
+                    echo "===== CADVISOR CONFIG ====="
+                    grep '^CADVISOR_' .env
+
+                    echo "===== POSTGRES CONFIG ====="
+                    grep '^DB_' .env
+                    grep '^DATABASE_URL=' .env | sed 's/:\\/\\/.*:.*@/:\\/\\/***:***@/'
+                '''
+            }
+        }
+
+        // ==========================================================
+        // VERIFY DOCKER COMPOSE CONFIG
+        // ==========================================================
+        stage('Validate compose') {
+            steps {
+                sh '''
+                    docker compose --env-file .env config > /tmp/dockeropt-compose-config.yml
+
+                    echo "Docker Compose configuration is valid."
+
+                    echo "===== CADVISOR PORT ====="
+                    grep -A3 -B2 "cadvisor:" /tmp/dockeropt-compose-config.yml | head -20 || true
                 '''
             }
         }
@@ -295,7 +320,11 @@ EOF
         stage('Deploy') {
             steps {
                 sh '''
+                    echo "Stopping previous deployment..."
+
                     docker compose --env-file .env down --remove-orphans
+
+                    echo "Starting new deployment..."
 
                     docker compose --env-file .env up -d
                 '''
@@ -308,24 +337,30 @@ EOF
         stage('Health check') {
             steps {
                 sh '''
-                    echo "Waiting for containers to start..."
+                    echo "Waiting for containers..."
                     sleep 15
 
-                    echo "Docker Compose status:"
+                    echo "===== CONTAINERS ====="
                     docker compose --env-file .env ps
 
-                    echo "Checking backend health..."
+                    echo "===== BACKEND HEALTH CHECK ====="
 
-                    if curl -sf http://localhost:5000/health; then
+                    if docker exec dockeropt-backend wget -qO- http://localhost:5000/health; then
                         echo "Backend health check: OK"
                     else
-                        echo "Backend health check failed"
+                        echo "Backend health check FAILED"
 
-                        echo "Backend logs:"
+                        echo "===== BACKEND LOGS ====="
                         docker logs dockeropt-backend --tail 100 || true
 
                         exit 1
                     fi
+
+                    echo "===== CADVISOR ====="
+
+                    docker ps --format "table {{.Names}}\\t{{.Ports}}" | grep cadvisor || true
+
+                    echo "Deployment completed successfully."
                 '''
             }
         }
