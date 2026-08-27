@@ -1,5 +1,9 @@
 version: '3.8'
 
+# ==========================================================
+# NETWORK
+# ==========================================================
+
 networks:
 
   dockeropt-network:
@@ -15,6 +19,10 @@ networks:
         - subnet: ${DOCKEROPT_NETWORK_SUBNET}
 
 
+# ==========================================================
+# VOLUMES
+# ==========================================================
+
 volumes:
 
   prometheus-data:
@@ -25,6 +33,10 @@ volumes:
 
     name: ${POSTGRES_DATA_VOLUME}
 
+
+# ==========================================================
+# SERVICES
+# ==========================================================
 
 services:
 
@@ -224,6 +236,19 @@ services:
 
     container_name: ${POSTGRES_CONTAINER_NAME}
 
+    # ========================================================
+    # HOST PORT -> CONTAINER PORT
+    #
+    # Exemple:
+    # 5268:5432
+    #
+    # Serveur:
+    # localhost:5268
+    #
+    # Docker:
+    # postgres:5432
+    # ========================================================
+
     ports:
 
       - "${POSTGRES_PORT}:5432"
@@ -322,6 +347,18 @@ services:
 
       - /dev/disk/:/dev/disk:ro
 
+    # ========================================================
+    # IMPORTANT:
+    #
+    # Host:
+    # 8082
+    #
+    # Container:
+    # 8080
+    #
+    # Apache utilise déjà 8081 sur le serveur.
+    # ========================================================
+
     ports:
 
       - "${CADVISOR_PORT}:8080"
@@ -382,6 +419,7 @@ services:
     depends_on:
 
       - cadvisor
+
       - node-exporter
 
 
@@ -390,7 +428,9 @@ services:
   # ==========================================================
 
   dockeropt-backend:
+
     build: ${DOCKEROPT_BACKEND_BUILD}
+
     image: ${DOCKEROPT_BACKEND_IMAGE}
 
     container_name: ${DOCKEROPT_BACKEND_CONTAINER_NAME}
@@ -483,6 +523,7 @@ services:
   # ==========================================================
 
   dockeropt-frontend:
+
     build: ${DOCKEROPT_FRONTEND_BUILD}
 
     image: ${DOCKEROPT_FRONTEND_IMAGE}
