@@ -234,6 +234,8 @@ services:
 
     container_name: ${POSTGRES_CONTAINER_NAME}
 
+    # PostgreSQL n'est pas exposé sur l'hôte.
+    # Il est accessible uniquement par les autres conteneurs.
     expose:
 
       - "5432"
@@ -299,6 +301,7 @@ services:
 
       - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
 
+    # Accessible uniquement depuis le réseau Docker.
     expose:
 
       - "9100"
@@ -332,9 +335,9 @@ services:
 
       - /dev/disk/:/dev/disk:ro
 
-    # cAdvisor écoute sur 8080 DANS le conteneur.
-    # Aucun port HOST n'est publié.
-    # Cela évite tout conflit avec Apache.
+    # cAdvisor écoute sur 8080 dans le conteneur.
+    # Aucun port host n'est publié.
+    # Cela évite le conflit avec Apache/httpd qui utilise 8081.
     expose:
 
       - "8080"
@@ -382,6 +385,7 @@ services:
 
       - '--web.enable-lifecycle'
 
+    # Prometheus reste interne au réseau Docker.
     expose:
 
       - "9090"
@@ -411,6 +415,7 @@ services:
 
     container_name: ${DOCKEROPT_BACKEND_CONTAINER_NAME}
 
+    # Backend accessible uniquement depuis le réseau Docker.
     expose:
 
       - "${DOCKEROPT_BACKEND_INTERNAL_PORT}"
@@ -506,9 +511,19 @@ services:
 
     container_name: ${DOCKEROPT_FRONTEND_CONTAINER_NAME}
 
-    expose:
+    # ========================================================
+    # IMPORTANT
+    #
+    # Port HOST 3000 -> Port CONTAINER 80
+    #
+    # Cela permet d'ouvrir le frontend depuis Kali :
+    #
+    # http://IP_SERVEUR:3000
+    # ========================================================
 
-      - "80"
+    ports:
+
+      - "3000:80"
 
     environment:
 
