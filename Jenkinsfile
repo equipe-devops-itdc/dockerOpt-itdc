@@ -14,7 +14,7 @@ pipeline {
 
 
         // ==========================================================
-        // POSTGRESQL
+        // POSTGRESQL - JENKINS CREDENTIALS
         // ==========================================================
 
         POSTGRES_HOST = credentials('POSTGRES_HOST_ID')
@@ -89,8 +89,11 @@ pipeline {
                     set -e
 
                     echo "=========================================="
-                    echo "GENERATE .ENV"
+                    echo "GENERATING .ENV"
                     echo "=========================================="
+
+
+                    rm -f .env
 
 
                     cat > .env <<EOF
@@ -99,9 +102,10 @@ pipeline {
 # DOCKER
 # ==========================================================
 
-COMPOSE_PROJECT_NAME=dockeropt
+COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME}
 
 DOCKEROPT_NETWORK_NAME=dockeropt-network
+
 DOCKEROPT_NETWORK_SUBNET=172.20.0.0/16
 
 
@@ -222,14 +226,16 @@ POSTGRES_IMAGE=postgres:16-alpine
 
 POSTGRES_CONTAINER_NAME=dockeropt-postgres
 
+
 # ==========================================================
 # IMPORTANT
 #
-# Cette valeur vient du credential Jenkins :
+# Valeur provenant UNIQUEMENT de :
 #
+# Jenkins Credential:
 # POSTGRES_PORT_ID
 #
-# AUCUN port PostgreSQL n'est écrit en dur ici.
+# AUCUN PORT PostgreSQL n'est défini ici.
 # ==========================================================
 
 POSTGRES_PORT=${POSTGRES_PORT}
@@ -247,9 +253,15 @@ POSTGRES_DATA_VOLUME=dockeropt-postgres-data
 # DATABASE
 # ==========================================================
 
-DB_HOST=postgres
+# Host PostgreSQL provenant de POSTGRES_HOST_ID
+
+DB_HOST=${POSTGRES_HOST}
+
+
+# Port PostgreSQL provenant de POSTGRES_PORT_ID
 
 DB_PORT=${POSTGRES_PORT}
+
 
 DB_NAME=dockeropt
 
@@ -259,7 +271,12 @@ DB_PASSWORD=${POSTGRES_PASSWORD}
 
 DB_POOL_MAX=10
 
-DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:${POSTGRES_PORT}/dockeropt
+
+# ==========================================================
+# DATABASE URL
+# ==========================================================
+
+DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/dockeropt
 
 
 # ==========================================================
@@ -340,10 +357,8 @@ DOCKEROPT_FRONTEND_IMAGE=dockeropt-frontend:${DOCKER_TAG}
 
 DOCKEROPT_FRONTEND_CONTAINER_NAME=dockeropt-frontend
 
-# Port HOST du frontend
 FRONTEND_HOST_PORT=3000
 
-# Port interne nginx
 FRONTEND_INTERNAL_PORT=80
 
 DOCKEROPT_FRONTEND_API_URL=http://dockeropt-backend:5000
@@ -366,9 +381,93 @@ LOAD_GENERATOR_CPUS=0.25
 EOF
 
 
+                    chmod 600 .env
+
+                    echo ".env generated successfully."
+                '''
+            }
+        }
+
+
+        // ==========================================================
+        // VERIFY VARIABLES
+        // ==========================================================
+
+        stage('Verify PostgreSQL configuration') {
+
+            steps {
+
+                sh '''
+                    set -e
+
                     echo "=========================================="
-                    echo ".env generated successfully"
+                    echo "VERIFY POSTGRESQL CONFIGURATION"
                     echo "=========================================="
+
+
+                    if [ -z "${POSTGRES_PORT}" ]; then
+
+                        echo "ERROR: POSTGRES_PORT credential is empty."
+
+                        exit 1
+
+                    fi
+
+
+                    if ! echo "${POSTGRES_PORT}" | grep -Eq '^[0-9]+$'; then
+
+                        echo "ERROR: POSTGRES_PORT credential is not numeric."
+
+                        exit 1
+
+                    fi
+
+
+                    if [ -z "${POSTGRES_HOST}" ]; then
+
+                        echo "ERROR: POSTGRES_HOST credential is empty."
+
+                        exit 1
+
+                    fi
+
+
+                    if [ -z "${POSTGRES_USER}" ]; then
+
+                        echo "ERROR: POSTGRES_USER credential is empty."
+
+                        exit 1
+
+                    fi
+
+
+                    if [ -z "${POSTGRES_PASSWORD}" ]; then
+
+                        echo "ERROR: POSTGRES_PASSWORD credential is empty."
+
+                        exit 1
+
+                    fi
+
+
+                    echo "POSTGRES_HOST credential: OK"
+
+                    echo "POSTGRES_PORT credential: OK"
+
+                    echo "POSTGRES_USER credential: OK"
+
+                    echo "POSTGRES_PASSWORD credential: OK"
+
+
+                    echo ""
+
+                    echo "Checking generated Compose PostgreSQL configuration..."
+
+
+                    docker compose --env-file .env config | sed -n '/postgres:/,/^[^ ]/p' > /tmp/postgres-compose-config.txt
+
+
+                    echo "PostgreSQL Compose configuration generated successfully."
                 '''
             }
         }
@@ -389,7 +488,9 @@ EOF
                     echo "VALIDATING DOCKER COMPOSE"
                     echo "=========================================="
 
+
                     docker compose --env-file .env config > /tmp/docker-compose-config.yml
+
 
                     echo "Docker Compose configuration: OK"
                 '''
@@ -412,22 +513,18 @@ EOF
                     echo "DOCKER CHECK"
                     echo "=========================================="
 
+
                     docker --version
 
                     docker compose version
+
 
                     echo "Checking Docker daemon..."
 
                     docker info > /dev/null
 
-                    echo "Checking Docker Hub DNS..."
 
-                    if getent hosts auth.docker.io > /dev/null 2>&1
-                    then
-                        echo "DNS auth.docker.io: OK"
-                    else
-                        echo "WARNING: auth.docker.io DNS resolution failed"
-                    fi
+                    echo "Docker daemon: OK"
                 '''
             }
         }
@@ -449,50 +546,10 @@ EOF
                     echo "=========================================="
 
 
-                    echo "Testing Docker Hub connectivity..."
-
-                    if ! getent hosts auth.docker.io > /dev/null 2>&1
-                    then
-                        echo ""
-                        echo "ERROR: Cannot resolve auth.docker.io"
-                        echo ""
-                        echo "Docker cannot access Docker Hub."
-                        echo "This is a server DNS/network problem."
-                        echo ""
-                        exit 1
-                    fi
-
-
-                    echo "Docker Hub DNS: OK"
-
-
-                    echo "Pulling required base images..."
-
-
-                    docker pull node:20-alpine
-
-                    docker pull node:20-bookworm-slim
-
-                    docker pull nginx:alpine
-
-                    docker pull postgres:16-alpine
-
-                    docker pull prom/prometheus:latest
-
-                    docker pull prom/node-exporter:latest
-
-                    docker pull gcr.io/cadvisor/cadvisor:latest
-
-
-                    echo ""
-                    echo "Base images downloaded successfully."
-                    echo ""
-
-
-                    echo "Building project images..."
-
-
                     docker compose --env-file .env build
+
+
+                    echo "Docker images built successfully."
                 '''
             }
         }
@@ -525,8 +582,63 @@ EOF
                     docker compose --env-file .env up -d
 
 
-                    echo ""
-                    echo "Deployment started."
+                    echo "Deployment started successfully."
+                '''
+            }
+        }
+
+
+        // ==========================================================
+        // WAIT POSTGRES
+        // ==========================================================
+
+        stage('Wait for PostgreSQL') {
+
+            steps {
+
+                sh '''
+                    set -e
+
+                    echo "=========================================="
+                    echo "WAITING FOR POSTGRESQL"
+                    echo "=========================================="
+
+
+                    ATTEMPTS=0
+
+                    MAX_ATTEMPTS=30
+
+
+                    until docker exec dockeropt-postgres \
+                        pg_isready \
+                        -h localhost \
+                        -p "${POSTGRES_PORT}" \
+                        -U "${POSTGRES_USER}" \
+                        -d dockeropt
+                    do
+
+                        ATTEMPTS=$((ATTEMPTS + 1))
+
+
+                        if [ "${ATTEMPTS}" -ge "${MAX_ATTEMPTS}" ]; then
+
+                            echo "PostgreSQL did not become ready."
+
+                            docker logs dockeropt-postgres --tail 100 || true
+
+                            exit 1
+
+                        fi
+
+
+                        echo "PostgreSQL not ready yet..."
+
+                        sleep 2
+
+                    done
+
+
+                    echo "PostgreSQL is READY."
                 '''
             }
         }
@@ -544,15 +656,7 @@ EOF
                     set -e
 
                     echo "=========================================="
-                    echo "WAITING FOR CONTAINERS"
-                    echo "=========================================="
-
-
-                    sleep 20
-
-
-                    echo "=========================================="
-                    echo "CONTAINER STATUS"
+                    echo "HEALTH CHECK"
                     echo "=========================================="
 
 
@@ -561,29 +665,43 @@ EOF
 
                     echo ""
                     echo "=========================================="
-                    echo "POSTGRESQL HEALTH CHECK"
+                    echo "VERIFY POSTGRESQL PORT"
                     echo "=========================================="
 
 
-                    if docker exec dockeropt-postgres \
+                    echo "Checking PostgreSQL from inside container..."
+
+
+                    docker exec dockeropt-postgres \
                         pg_isready \
                         -h localhost \
                         -p "${POSTGRES_PORT}" \
                         -U "${POSTGRES_USER}" \
                         -d dockeropt
-                    then
 
-                        echo "PostgreSQL: OK"
 
-                    else
+                    echo "PostgreSQL: OK"
 
-                        echo "PostgreSQL: FAILED"
 
-                        docker logs dockeropt-postgres --tail 100 || true
+                    echo ""
+                    echo "=========================================="
+                    echo "VERIFY POSTGRESQL LISTENING PORT"
+                    echo "=========================================="
 
-                        exit 1
 
-                    fi
+                    docker exec dockeropt-postgres \
+                        sh -c 'pg_isready -h localhost -p "$POSTGRES_PORT" 2>/dev/null || true'
+
+
+                    echo ""
+                    echo "PostgreSQL command line configuration:"
+
+
+                    docker exec dockeropt-postgres \
+                        psql \
+                        -U "${POSTGRES_USER}" \
+                        -d dockeropt \
+                        -c "SHOW port;"
 
 
                     echo ""
@@ -592,23 +710,41 @@ EOF
                     echo "=========================================="
 
 
-                    if docker exec dockeropt-backend \
+                    ATTEMPTS=0
+
+                    MAX_ATTEMPTS=30
+
+
+                    until docker exec dockeropt-backend \
                         wget -qO- \
                         http://localhost:5000/health \
                         > /dev/null 2>&1
-                    then
+                    do
 
-                        echo "Backend: OK"
+                        ATTEMPTS=$((ATTEMPTS + 1))
 
-                    else
 
-                        echo "Backend: FAILED"
+                        if [ "${ATTEMPTS}" -ge "${MAX_ATTEMPTS}" ]; then
 
-                        docker logs dockeropt-backend --tail 100 || true
+                            echo "Backend health check failed."
 
-                        exit 1
 
-                    fi
+                            docker logs dockeropt-backend --tail 150 || true
+
+
+                            exit 1
+
+                        fi
+
+
+                        echo "Backend not ready yet..."
+
+                        sleep 2
+
+                    done
+
+
+                    echo "Backend: OK"
 
 
                     echo ""
@@ -617,32 +753,57 @@ EOF
                     echo "=========================================="
 
 
-                    if docker exec dockeropt-frontend \
+                    ATTEMPTS=0
+
+                    MAX_ATTEMPTS=30
+
+
+                    until docker exec dockeropt-frontend \
                         wget -qO- \
                         http://localhost/ \
                         > /dev/null 2>&1
-                    then
+                    do
 
-                        echo "Frontend: OK"
+                        ATTEMPTS=$((ATTEMPTS + 1))
 
-                    else
 
-                        echo "Frontend: FAILED"
+                        if [ "${ATTEMPTS}" -ge "${MAX_ATTEMPTS}" ]; then
 
-                        docker logs dockeropt-frontend --tail 100 || true
+                            echo "Frontend health check failed."
 
-                        exit 1
 
-                    fi
+                            docker logs dockeropt-frontend --tail 100 || true
+
+
+                            exit 1
+
+                        fi
+
+
+                        echo "Frontend not ready yet..."
+
+                        sleep 2
+
+                    done
+
+
+                    echo "Frontend: OK"
+
+
+                    echo ""
+                    echo "=========================================="
+                    echo "FINAL CONTAINER STATUS"
+                    echo "=========================================="
+
+
+                    docker ps \
+                        --format "table {{.Names}}\\t{{.Status}}\\t{{.Ports}}"
 
 
                     echo ""
                     echo "=========================================="
                     echo "DEPLOYMENT SUCCESSFUL"
                     echo "=========================================="
-
-
-                    docker ps --format "table {{.Names}}\\t{{.Status}}\\t{{.Ports}}"
                 '''
             }
         }

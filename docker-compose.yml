@@ -46,11 +46,14 @@ services:
       - "${API_GATEWAY_PORT}"
 
     environment:
-      PORT: ${API_GATEWAY_PORT}
 
-      USER_SERVICE_URL: ${API_GATEWAY_USER_SERVICE_URL}
-      PRODUCT_SERVICE_URL: ${API_GATEWAY_PRODUCT_SERVICE_URL}
-      NOTIFICATION_SERVICE_URL: ${API_GATEWAY_NOTIFICATION_SERVICE_URL}
+      PORT: "${API_GATEWAY_PORT}"
+
+      USER_SERVICE_URL: "${API_GATEWAY_USER_SERVICE_URL}"
+
+      PRODUCT_SERVICE_URL: "${API_GATEWAY_PRODUCT_SERVICE_URL}"
+
+      NOTIFICATION_SERVICE_URL: "${API_GATEWAY_NOTIFICATION_SERVICE_URL}"
 
     networks:
       - dockeropt-network
@@ -58,9 +61,11 @@ services:
     restart: unless-stopped
 
     mem_limit: ${API_GATEWAY_MEM_LIMIT}
+
     cpus: "${API_GATEWAY_CPUS}"
 
     healthcheck:
+
       test:
         [
           "CMD",
@@ -88,7 +93,8 @@ services:
       - "${USER_SERVICE_PORT}"
 
     environment:
-      PORT: ${USER_SERVICE_PORT}
+
+      PORT: "${USER_SERVICE_PORT}"
 
     networks:
       - dockeropt-network
@@ -96,9 +102,11 @@ services:
     restart: unless-stopped
 
     mem_limit: ${USER_SERVICE_MEM_LIMIT}
+
     cpus: "${USER_SERVICE_CPUS}"
 
     healthcheck:
+
       test:
         [
           "CMD",
@@ -126,7 +134,8 @@ services:
       - "${PRODUCT_SERVICE_PORT}"
 
     environment:
-      PORT: ${PRODUCT_SERVICE_PORT}
+
+      PORT: "${PRODUCT_SERVICE_PORT}"
 
     networks:
       - dockeropt-network
@@ -134,9 +143,11 @@ services:
     restart: unless-stopped
 
     mem_limit: ${PRODUCT_SERVICE_MEM_LIMIT}
+
     cpus: "${PRODUCT_SERVICE_CPUS}"
 
     healthcheck:
+
       test:
         [
           "CMD",
@@ -164,7 +175,8 @@ services:
       - "${NOTIFICATION_SERVICE_PORT}"
 
     environment:
-      PORT: ${NOTIFICATION_SERVICE_PORT}
+
+      PORT: "${NOTIFICATION_SERVICE_PORT}"
 
     networks:
       - dockeropt-network
@@ -172,9 +184,11 @@ services:
     restart: unless-stopped
 
     mem_limit: ${NOTIFICATION_SERVICE_MEM_LIMIT}
+
     cpus: "${NOTIFICATION_SERVICE_CPUS}"
 
     healthcheck:
+
       test:
         [
           "CMD",
@@ -198,31 +212,79 @@ services:
 
     container_name: ${POSTGRES_CONTAINER_NAME}
 
-    # PostgreSQL écoute sur le port fourni par Jenkins
+    # ========================================================
+    # IMPORTANT
+    #
+    # Le port est fourni par Jenkins.
+    # Aucun port PostgreSQL n'est écrit en dur.
+    # ========================================================
+
     command:
+
       - "postgres"
+
       - "-c"
+
       - "port=${POSTGRES_PORT}"
 
+      - "-c"
+
+      - "listen_addresses=*"
+
+
+    # ========================================================
+    # PORT HOST -> PORT CONTAINER
+    #
+    # Les deux valeurs viennent du credential Jenkins.
+    # ========================================================
+
+    ports:
+
+      - "${POSTGRES_PORT}:${POSTGRES_PORT}"
+
+
+    # ========================================================
+    # PORT INTERNE DOCKER
+    # ========================================================
+
     expose:
+
       - "${POSTGRES_PORT}"
+
+
+    # ========================================================
+    # POSTGRES ENVIRONMENT
+    # ========================================================
 
     environment:
 
-      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_DB: "${POSTGRES_DB}"
 
-      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_USER: "${POSTGRES_USER}"
 
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+
+
+    # ========================================================
+    # DATABASE VOLUME
+    # ========================================================
 
     volumes:
 
       - dockeropt-postgres-data:/var/lib/postgresql/data
 
+
     networks:
+
       - dockeropt-network
 
+
     restart: unless-stopped
+
+
+    # ========================================================
+    # POSTGRES HEALTHCHECK
+    # ========================================================
 
     healthcheck:
 
@@ -233,8 +295,12 @@ services:
         ]
 
       interval: 10s
+
       timeout: 5s
+
       retries: 10
+
+      start_period: 10s
 
 
   # ==========================================================
@@ -250,20 +316,27 @@ services:
     volumes:
 
       - /proc:/host/proc:ro
+
       - /sys:/host/sys:ro
+
       - /:/rootfs:ro
 
     command:
 
       - "--path.procfs=/host/proc"
+
       - "--path.sysfs=/host/sys"
+
       - "--path.rootfs=/rootfs"
+
       - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
 
     expose:
+
       - "${NODE_EXPORTER_PORT}"
 
     networks:
+
       - dockeropt-network
 
     restart: unless-stopped
@@ -282,17 +355,21 @@ services:
     volumes:
 
       - /:/rootfs:ro
+
       - /var/run:/var/run:ro
+
       - /sys:/sys:ro
+
       - /var/lib/docker/:/var/lib/docker:ro
+
       - /dev/disk/:/dev/disk:ro
 
-    # Port interne uniquement.
-    # Aucun port HOST 8081.
     expose:
+
       - "${CADVISOR_INTERNAL_PORT}"
 
     networks:
+
       - dockeropt-network
 
     restart: unless-stopped
@@ -335,15 +412,19 @@ services:
       - "--web.enable-lifecycle"
 
     expose:
+
       - "${PROMETHEUS_PORT}"
 
     networks:
+
       - dockeropt-network
 
     restart: unless-stopped
 
     depends_on:
+
       - cadvisor
+
       - node-exporter
 
 
@@ -360,71 +441,94 @@ services:
     container_name: ${DOCKEROPT_BACKEND_CONTAINER_NAME}
 
     expose:
+
       - "${DOCKEROPT_BACKEND_INTERNAL_PORT}"
 
     environment:
 
-      PORT: ${DOCKEROPT_BACKEND_INTERNAL_PORT}
+      PORT: "${DOCKEROPT_BACKEND_INTERNAL_PORT}"
 
-      PROMETHEUS_URL: ${PROMETHEUS_URL}
+      PROMETHEUS_URL: "${PROMETHEUS_URL}"
 
-      DOCKER_HOST: ${DOCKER_HOST}
+      DOCKER_HOST: "${DOCKER_HOST}"
 
-      DATABASE_URL: ${DATABASE_URL}
 
-      DB_HOST: ${DB_HOST}
+      # ======================================================
+      # DATABASE
+      # ======================================================
 
-      DB_PORT: ${DB_PORT}
+      DATABASE_URL: "${DATABASE_URL}"
 
-      DB_POOL_MAX: ${DB_POOL_MAX}
+      DB_HOST: "${DB_HOST}"
 
-      DB_NAME: ${DB_NAME}
+      DB_PORT: "${DB_PORT}"
 
-      DB_USER: ${DB_USER}
+      DB_POOL_MAX: "${DB_POOL_MAX}"
 
-      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: "${DB_NAME}"
 
-      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      DB_USER: "${DB_USER}"
 
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      DB_PASSWORD: "${DB_PASSWORD}"
 
-      JWT_SECRET: ${JWT_SECRET}
 
-      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN}
+      # ======================================================
+      # ADMIN
+      # ======================================================
 
-      SMTP_HOST: ${SMTP_HOST}
+      ADMIN_EMAIL: "${ADMIN_EMAIL}"
 
-      SMTP_PORT: ${SMTP_PORT}
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD}"
 
-      SMTP_SECURE: ${SMTP_SECURE}
+      JWT_SECRET: "${JWT_SECRET}"
 
-      SMTP_USER: ${SMTP_USER}
+      JWT_EXPIRES_IN: "${JWT_EXPIRES_IN}"
 
-      SMTP_PASSWORD: ${SMTP_PASSWORD}
 
-      SMTP_FROM: ${SMTP_FROM}
+      # ======================================================
+      # SMTP
+      # ======================================================
 
-      ALERT_EMAIL_TO: ${ALERT_EMAIL_TO}
+      SMTP_HOST: "${SMTP_HOST}"
 
-      ALERT_CHECK_INTERVAL_MS: ${ALERT_CHECK_INTERVAL_MS}
+      SMTP_PORT: "${SMTP_PORT}"
 
-      PLATFORM_URL: ${PLATFORM_URL}
+      SMTP_SECURE: "${SMTP_SECURE}"
 
-      PLATFORM_INFRA_CONTAINERS: ${PLATFORM_INFRA_CONTAINERS}
+      SMTP_USER: "${SMTP_USER}"
 
-      RECO_WINDOW_MS: ${RECO_WINDOW_MS}
+      SMTP_PASSWORD: "${SMTP_PASSWORD}"
 
-      RECO_MIN_SAMPLES: ${RECO_MIN_SAMPLES}
+      SMTP_FROM: "${SMTP_FROM}"
 
-      OPTIMIZATION_COOLDOWN_MS: ${OPTIMIZATION_COOLDOWN_MS}
+      ALERT_EMAIL_TO: "${ALERT_EMAIL_TO}"
 
-      SECURITY_SCAN_TIMEOUT_MS: ${SECURITY_SCAN_TIMEOUT_MS}
+      ALERT_CHECK_INTERVAL_MS: "${ALERT_CHECK_INTERVAL_MS}"
+
+
+      # ======================================================
+      # PLATFORM
+      # ======================================================
+
+      PLATFORM_URL: "${PLATFORM_URL}"
+
+      PLATFORM_INFRA_CONTAINERS: "${PLATFORM_INFRA_CONTAINERS}"
+
+      RECO_WINDOW_MS: "${RECO_WINDOW_MS}"
+
+      RECO_MIN_SAMPLES: "${RECO_MIN_SAMPLES}"
+
+      OPTIMIZATION_COOLDOWN_MS: "${OPTIMIZATION_COOLDOWN_MS}"
+
+      SECURITY_SCAN_TIMEOUT_MS: "${SECURITY_SCAN_TIMEOUT_MS}"
+
 
     volumes:
 
       - /var/run/docker.sock:/var/run/docker.sock
 
     networks:
+
       - dockeropt-network
 
     restart: unless-stopped
@@ -432,9 +536,11 @@ services:
     depends_on:
 
       postgres:
+
         condition: service_healthy
 
       prometheus:
+
         condition: service_started
 
 
@@ -450,29 +556,22 @@ services:
 
     container_name: ${DOCKEROPT_FRONTEND_CONTAINER_NAME}
 
-    # ========================================================
-    # ACCES INTERNET / NAVIGATEUR
-    #
-    # HOST 3000 -> CONTAINER 80
-    #
-    # Depuis Kali :
-    #
-    # http://IP_DU_SERVEUR:3000
-    # ========================================================
-
     ports:
+
       - "${FRONTEND_HOST_PORT}:${FRONTEND_INTERNAL_PORT}"
 
     environment:
 
-      API_URL: ${DOCKEROPT_FRONTEND_API_URL}
+      API_URL: "${DOCKEROPT_FRONTEND_API_URL}"
 
     networks:
+
       - dockeropt-network
 
     restart: unless-stopped
 
     depends_on:
+
       - dockeropt-backend
 
 
@@ -488,18 +587,22 @@ services:
 
     environment:
 
-      API_GATEWAY_URL: ${LOAD_GENERATOR_API_GATEWAY_URL}
+      API_GATEWAY_URL: "${LOAD_GENERATOR_API_GATEWAY_URL}"
 
     networks:
+
       - dockeropt-network
 
     restart: unless-stopped
 
     mem_limit: ${LOAD_GENERATOR_MEM_LIMIT}
+
     cpus: "${LOAD_GENERATOR_CPUS}"
 
     depends_on:
+
       - api-gateway
 
     profiles:
+
       - test
