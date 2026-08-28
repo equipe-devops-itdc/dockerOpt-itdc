@@ -5,15 +5,11 @@
 networks:
 
   dockeropt-network:
-
     name: ${DOCKEROPT_NETWORK_NAME}
-
     driver: bridge
 
     ipam:
-
       config:
-
         - subnet: ${DOCKEROPT_NETWORK_SUBNET}
 
 
@@ -24,11 +20,9 @@ networks:
 volumes:
 
   prometheus-data:
-
     name: ${PROMETHEUS_DATA_VOLUME}
 
   dockeropt-postgres-data:
-
     name: ${POSTGRES_DATA_VOLUME}
 
 
@@ -49,31 +43,24 @@ services:
     container_name: ${API_GATEWAY_CONTAINER_NAME}
 
     expose:
-
       - "${API_GATEWAY_PORT}"
 
     environment:
-
       PORT: ${API_GATEWAY_PORT}
 
       USER_SERVICE_URL: ${API_GATEWAY_USER_SERVICE_URL}
-
       PRODUCT_SERVICE_URL: ${API_GATEWAY_PRODUCT_SERVICE_URL}
-
       NOTIFICATION_SERVICE_URL: ${API_GATEWAY_NOTIFICATION_SERVICE_URL}
 
     networks:
-
       - dockeropt-network
 
     restart: unless-stopped
 
     mem_limit: ${API_GATEWAY_MEM_LIMIT}
-
-    cpus: '${API_GATEWAY_CPUS}'
+    cpus: "${API_GATEWAY_CPUS}"
 
     healthcheck:
-
       test:
         [
           "CMD",
@@ -83,9 +70,7 @@ services:
         ]
 
       interval: 30s
-
       timeout: 5s
-
       retries: 3
 
 
@@ -100,25 +85,20 @@ services:
     container_name: ${USER_SERVICE_CONTAINER_NAME}
 
     expose:
-
       - "${USER_SERVICE_PORT}"
 
     environment:
-
       PORT: ${USER_SERVICE_PORT}
 
     networks:
-
       - dockeropt-network
 
     restart: unless-stopped
 
     mem_limit: ${USER_SERVICE_MEM_LIMIT}
-
-    cpus: '${USER_SERVICE_CPUS}'
+    cpus: "${USER_SERVICE_CPUS}"
 
     healthcheck:
-
       test:
         [
           "CMD",
@@ -128,9 +108,7 @@ services:
         ]
 
       interval: 30s
-
       timeout: 5s
-
       retries: 3
 
 
@@ -145,25 +123,20 @@ services:
     container_name: ${PRODUCT_SERVICE_CONTAINER_NAME}
 
     expose:
-
       - "${PRODUCT_SERVICE_PORT}"
 
     environment:
-
       PORT: ${PRODUCT_SERVICE_PORT}
 
     networks:
-
       - dockeropt-network
 
     restart: unless-stopped
 
     mem_limit: ${PRODUCT_SERVICE_MEM_LIMIT}
-
-    cpus: '${PRODUCT_SERVICE_CPUS}'
+    cpus: "${PRODUCT_SERVICE_CPUS}"
 
     healthcheck:
-
       test:
         [
           "CMD",
@@ -173,9 +146,7 @@ services:
         ]
 
       interval: 30s
-
       timeout: 5s
-
       retries: 3
 
 
@@ -190,25 +161,20 @@ services:
     container_name: ${NOTIFICATION_SERVICE_CONTAINER_NAME}
 
     expose:
-
       - "${NOTIFICATION_SERVICE_PORT}"
 
     environment:
-
       PORT: ${NOTIFICATION_SERVICE_PORT}
 
     networks:
-
       - dockeropt-network
 
     restart: unless-stopped
 
     mem_limit: ${NOTIFICATION_SERVICE_MEM_LIMIT}
-
-    cpus: '${NOTIFICATION_SERVICE_CPUS}'
+    cpus: "${NOTIFICATION_SERVICE_CPUS}"
 
     healthcheck:
-
       test:
         [
           "CMD",
@@ -218,9 +184,7 @@ services:
         ]
 
       interval: 30s
-
       timeout: 5s
-
       retries: 3
 
 
@@ -229,41 +193,48 @@ services:
   # ==========================================================
 
   postgres:
-  image: ${POSTGRES_IMAGE}
 
-  container_name: ${POSTGRES_CONTAINER_NAME}
+    image: ${POSTGRES_IMAGE}
 
-  command:
-    - "postgres"
-    - "-c"
-    - "port=${POSTGRES_PORT}"
+    container_name: ${POSTGRES_CONTAINER_NAME}
 
-  expose:
-    - "${POSTGRES_PORT}"
+    # PostgreSQL écoute sur le port fourni par Jenkins
+    command:
+      - "postgres"
+      - "-c"
+      - "port=${POSTGRES_PORT}"
 
-  environment:
-    POSTGRES_DB: ${POSTGRES_DB}
-    POSTGRES_USER: ${POSTGRES_USER}
-    POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    expose:
+      - "${POSTGRES_PORT}"
 
-  volumes:
-    - dockeropt-postgres-data:/var/lib/postgresql/data
+    environment:
 
-  networks:
-    - dockeropt-network
+      POSTGRES_DB: ${POSTGRES_DB}
 
-  restart: unless-stopped
+      POSTGRES_USER: ${POSTGRES_USER}
 
-  healthcheck:
-    test:
-      [
-        "CMD-SHELL",
-        "pg_isready -h localhost -p ${POSTGRES_PORT} -U ${POSTGRES_USER} -d ${POSTGRES_DB}"
-      ]
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
 
-    interval: 10s
-    timeout: 5s
-    retries: 10
+    volumes:
+
+      - dockeropt-postgres-data:/var/lib/postgresql/data
+
+    networks:
+      - dockeropt-network
+
+    restart: unless-stopped
+
+    healthcheck:
+
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -h localhost -p ${POSTGRES_PORT} -U ${POSTGRES_USER} -d ${POSTGRES_DB}"
+        ]
+
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
 
   # ==========================================================
@@ -279,28 +250,20 @@ services:
     volumes:
 
       - /proc:/host/proc:ro
-
       - /sys:/host/sys:ro
-
       - /:/rootfs:ro
 
     command:
 
-      - '--path.procfs=/host/proc'
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
+      - "--path.rootfs=/rootfs"
+      - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
 
-      - '--path.sysfs=/host/sys'
-
-      - '--path.rootfs=/rootfs'
-
-      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
-
-    # Accessible uniquement depuis le réseau Docker.
     expose:
-
-      - "9100"
+      - "${NODE_EXPORTER_PORT}"
 
     networks:
-
       - dockeropt-network
 
     restart: unless-stopped
@@ -319,24 +282,17 @@ services:
     volumes:
 
       - /:/rootfs:ro
-
       - /var/run:/var/run:ro
-
       - /sys:/sys:ro
-
       - /var/lib/docker/:/var/lib/docker:ro
-
       - /dev/disk/:/dev/disk:ro
 
-    # cAdvisor écoute sur 8080 dans le conteneur.
-    # Aucun port host n'est publié.
-    # Cela évite le conflit avec Apache/httpd qui utilise 8081.
+    # Port interne uniquement.
+    # Aucun port HOST 8081.
     expose:
-
-      - "8080"
+      - "${CADVISOR_INTERNAL_PORT}"
 
     networks:
-
       - dockeropt-network
 
     restart: unless-stopped
@@ -366,33 +322,28 @@ services:
 
     command:
 
-      - '--config.file=/etc/prometheus/prometheus.yml'
+      - "--config.file=/etc/prometheus/prometheus.yml"
 
-      - '--storage.tsdb.path=/prometheus'
+      - "--storage.tsdb.path=/prometheus"
 
-      - '--storage.tsdb.retention.time=${PROMETHEUS_RETENTION}'
+      - "--storage.tsdb.retention.time=${PROMETHEUS_RETENTION}"
 
-      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
 
-      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - "--web.console.templates=/usr/share/prometheus/consoles"
 
-      - '--web.enable-lifecycle'
+      - "--web.enable-lifecycle"
 
-    # Prometheus reste interne au réseau Docker.
     expose:
-
-      - "9090"
+      - "${PROMETHEUS_PORT}"
 
     networks:
-
       - dockeropt-network
 
     restart: unless-stopped
 
     depends_on:
-
       - cadvisor
-
       - node-exporter
 
 
@@ -408,9 +359,7 @@ services:
 
     container_name: ${DOCKEROPT_BACKEND_CONTAINER_NAME}
 
-    # Backend accessible uniquement depuis le réseau Docker.
     expose:
-
       - "${DOCKEROPT_BACKEND_INTERNAL_PORT}"
 
     environment:
@@ -476,7 +425,6 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
 
     networks:
-
       - dockeropt-network
 
     restart: unless-stopped
@@ -484,11 +432,9 @@ services:
     depends_on:
 
       postgres:
-
         condition: service_healthy
 
       prometheus:
-
         condition: service_started
 
 
@@ -505,31 +451,28 @@ services:
     container_name: ${DOCKEROPT_FRONTEND_CONTAINER_NAME}
 
     # ========================================================
-    # IMPORTANT
+    # ACCES INTERNET / NAVIGATEUR
     #
-    # Port HOST 3000 -> Port CONTAINER 80
+    # HOST 3000 -> CONTAINER 80
     #
-    # Cela permet d'ouvrir le frontend depuis Kali :
+    # Depuis Kali :
     #
-    # http://IP_SERVEUR:3000
+    # http://IP_DU_SERVEUR:3000
     # ========================================================
 
     ports:
-
-      - "3000:80"
+      - "${FRONTEND_HOST_PORT}:${FRONTEND_INTERNAL_PORT}"
 
     environment:
 
       API_URL: ${DOCKEROPT_FRONTEND_API_URL}
 
     networks:
-
       - dockeropt-network
 
     restart: unless-stopped
 
     depends_on:
-
       - dockeropt-backend
 
 
@@ -548,19 +491,15 @@ services:
       API_GATEWAY_URL: ${LOAD_GENERATOR_API_GATEWAY_URL}
 
     networks:
-
       - dockeropt-network
 
     restart: unless-stopped
 
     mem_limit: ${LOAD_GENERATOR_MEM_LIMIT}
-
-    cpus: '${LOAD_GENERATOR_CPUS}'
+    cpus: "${LOAD_GENERATOR_CPUS}"
 
     depends_on:
-
       - api-gateway
 
     profiles:
-
       - test
