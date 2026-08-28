@@ -451,17 +451,35 @@ EOF
 
                     echo "Checking network connectivity to external PostgreSQL server..."
 
-                    if command -v pg_isready > /dev/null 2>&1; then
+                    if ! command -v pg_isready > /dev/null 2>&1; then
 
-                        pg_isready -h "${POSTGRES_HOST}" -p "${POSTGRES_PORT}" -U "${POSTGRES_USER}" -d dockeropt
+                        echo "ERROR: pg_isready is not installed on this Jenkins agent."
+
+                        echo "Install the PostgreSQL client package, e.g.:"
+
+                        echo "    sudo dnf install -y postgresql"
+
+                        exit 1
+
+                    fi
+
+                    if ! command -v nc > /dev/null 2>&1; then
+
+                        echo "WARNING: 'nc' is not installed, skipping raw TCP pre-check (pg_isready below is authoritative)."
 
                     else
 
-                        timeout 5 bash -c "cat < /dev/null > /dev/tcp/${POSTGRES_HOST}/${POSTGRES_PORT}"
+                        if ! nc -z -w5 "${POSTGRES_HOST}" "${POSTGRES_PORT}"; then
 
-                        echo "TCP port ${POSTGRES_PORT} on ${POSTGRES_HOST} is reachable."
+                            echo "ERROR: cannot reach ${POSTGRES_HOST}:${POSTGRES_PORT} over TCP."
+
+                            exit 1
+
+                        fi
 
                     fi
+
+                    pg_isready -h "${POSTGRES_HOST}" -p "${POSTGRES_PORT}" -U "${POSTGRES_USER}" -d dockeropt
 
 
                     echo "External PostgreSQL server: OK"
