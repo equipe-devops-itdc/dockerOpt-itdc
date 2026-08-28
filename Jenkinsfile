@@ -15,6 +15,10 @@ pipeline {
 
         // ==========================================================
         // POSTGRESQL - JENKINS CREDENTIALS
+        //
+        // Serveur PostgreSQL EXTERNE partagé (pas un conteneur
+        // local). POSTGRES_HOST_ID = IP réelle du serveur.
+        // POSTGRES_PORT_ID = port réel d'écoute (ex: 5435).
         // ==========================================================
 
         POSTGRES_HOST = credentials('POSTGRES_HOST_ID')
@@ -219,49 +223,33 @@ PROMETHEUS_DATA_VOLUME=prometheus-data
 
 
 # ==========================================================
-# POSTGRESQL
-# ==========================================================
-
-POSTGRES_IMAGE=postgres:16-alpine
-
-POSTGRES_CONTAINER_NAME=dockeropt-postgres
-
-
-# ==========================================================
+# POSTGRESQL (SERVEUR EXTERNE PARTAGE)
+#
 # IMPORTANT
 #
-# Valeur provenant UNIQUEMENT de :
+# Valeurs provenant UNIQUEMENT des credentials Jenkins :
+# POSTGRES_HOST_ID / POSTGRES_PORT_ID /
+# POSTGRES_USER_ID / POSTGRES_PASSWORD_ID
 #
-# Jenkins Credential:
-# POSTGRES_PORT_ID
-#
-# AUCUN PORT PostgreSQL n'est défini ici.
+# Il n'y a AUCUN conteneur postgres dans ce projet.
 # ==========================================================
 
-POSTGRES_PORT=${POSTGRES_PORT}
+POSTGRES_HOST=${POSTGRES_HOST}
 
-POSTGRES_DB=dockeropt
+POSTGRES_PORT=${POSTGRES_PORT}
 
 POSTGRES_USER=${POSTGRES_USER}
 
 POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-
-POSTGRES_DATA_VOLUME=dockeropt-postgres-data
 
 
 # ==========================================================
 # DATABASE
 # ==========================================================
 
-# Host PostgreSQL provenant de POSTGRES_HOST_ID
-
 DB_HOST=${POSTGRES_HOST}
 
-
-# Port PostgreSQL provenant de POSTGRES_PORT_ID
-
 DB_PORT=${POSTGRES_PORT}
-
 
 DB_NAME=dockeropt
 
@@ -336,7 +324,7 @@ ALERT_CHECK_INTERVAL_MS=15000
 
 PLATFORM_URL=http://localhost:3000
 
-PLATFORM_INFRA_CONTAINERS=dockeropt-backend,dockeropt-frontend,dockeropt-prometheus,dockeropt-cadvisor,dockeropt-node-exporter,dockeropt-postgres
+PLATFORM_INFRA_CONTAINERS=dockeropt-backend,dockeropt-frontend,dockeropt-prometheus,dockeropt-cadvisor,dockeropt-node-exporter
 
 RECO_WINDOW_MS=300000
 
@@ -390,7 +378,7 @@ EOF
 
 
         // ==========================================================
-        // VERIFY VARIABLES
+        // VERIFY VARIABLES + CONNECTIVITE POSTGRESQL EXTERNE
         // ==========================================================
 
         stage('Verify PostgreSQL configuration') {
@@ -461,13 +449,33 @@ EOF
 
                     echo ""
 
-                    echo "Checking generated Compose PostgreSQL configuration..."
+                    echo "Checking network connectivity to external PostgreSQL server..."
+
+                    if command -v pg_isready > /dev/null 2>&1; then
+
+                        pg_isready -h "${POSTGRES_HOST}" -p "${POSTGRES_PORT}" -U "${POSTGRES_USER}" -d dockeropt
+
+                    else
+
+                        timeout 5 bash -c "cat < /dev/null > /dev/tcp/${POSTGRES_HOST}/${POSTGRES_PORT}"
+
+                        echo "TCP port ${POSTGRES_PORT} on ${POSTGRES_HOST} is reachable."
+
+                    fi
 
 
-                    docker compose --env-file .env config | sed -n '/postgres:/,/^[^ ]/p' > /tmp/postgres-compose-config.txt
+                    echo "External PostgreSQL server: OK"
 
 
-                    echo "PostgreSQL Compose configuration generated successfully."
+                    echo ""
+
+                    echo "Checking generated Compose configuration for the backend DB variables..."
+
+
+                    docker compose --env-file .env config | grep -A 20 'dockeropt-backend:' > /tmp/backend-compose-config.txt
+
+
+                    echo "Backend Compose configuration generated successfully."
                 '''
             }
         }
@@ -589,7 +597,7 @@ EOF
 
 
         // ==========================================================
-        // WAIT POSTGRES
+        // WAIT POSTGRES (serveur externe, pas de conteneur)
         // ==========================================================
 
         stage('Wait for PostgreSQL') {
@@ -600,7 +608,7 @@ EOF
                     set -e
 
                     echo "=========================================="
-                    echo "WAITING FOR POSTGRESQL"
+                    echo "WAITING FOR EXTERNAL POSTGRESQL"
                     echo "=========================================="
 
 
@@ -609,9 +617,8 @@ EOF
                     MAX_ATTEMPTS=30
 
 
-                    until docker exec dockeropt-postgres \
-                        pg_isready \
-                        -h localhost \
+                    until pg_isready \
+                        -h "${POSTGRES_HOST}" \
                         -p "${POSTGRES_PORT}" \
                         -U "${POSTGRES_USER}" \
                         -d dockeropt
@@ -622,23 +629,21 @@ EOF
 
                         if [ "${ATTEMPTS}" -ge "${MAX_ATTEMPTS}" ]; then
 
-                            echo "PostgreSQL did not become ready."
-
-                            docker logs dockeropt-postgres --tail 100 || true
+                            echo "External PostgreSQL did not become reachable."
 
                             exit 1
 
                         fi
 
 
-                        echo "PostgreSQL not ready yet..."
+                        echo "External PostgreSQL not reachable yet..."
 
                         sleep 2
 
                     done
 
 
-                    echo "PostgreSQL is READY."
+                    echo "External PostgreSQL is READY."
                 '''
             }
         }
@@ -665,16 +670,15 @@ EOF
 
                     echo ""
                     echo "=========================================="
-                    echo "VERIFY POSTGRESQL PORT"
+                    echo "VERIFY EXTERNAL POSTGRESQL"
                     echo "=========================================="
 
 
-                    echo "Checking PostgreSQL from inside container..."
+                    echo "Checking external PostgreSQL from the Jenkins agent..."
 
 
-                    docker exec dockeropt-postgres \
-                        pg_isready \
-                        -h localhost \
+                    pg_isready \
+                        -h "${POSTGRES_HOST}" \
                         -p "${POSTGRES_PORT}" \
                         -U "${POSTGRES_USER}" \
                         -d dockeropt
@@ -684,21 +688,12 @@ EOF
 
 
                     echo ""
-                    echo "=========================================="
-                    echo "VERIFY POSTGRESQL LISTENING PORT"
-                    echo "=========================================="
+                    echo "PostgreSQL server configuration:"
 
 
-                    docker exec dockeropt-postgres \
-                        sh -c 'pg_isready -h localhost -p "$POSTGRES_PORT" 2>/dev/null || true'
-
-
-                    echo ""
-                    echo "PostgreSQL command line configuration:"
-
-
-                    docker exec dockeropt-postgres \
-                        psql \
+                    PGPASSWORD="${POSTGRES_PASSWORD}" psql \
+                        -h "${POSTGRES_HOST}" \
+                        -p "${POSTGRES_PORT}" \
                         -U "${POSTGRES_USER}" \
                         -d dockeropt \
                         -c "SHOW port;"

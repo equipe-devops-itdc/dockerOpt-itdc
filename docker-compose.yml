@@ -15,15 +15,16 @@ networks:
 
 # ==========================================================
 # VOLUMES
+#
+# IMPORTANT : plus de volume postgres ici.
+# PostgreSQL est un serveur EXTERNE partagé (voir credentials
+# POSTGRES_HOST_ID / POSTGRES_PORT_ID), pas un conteneur local.
 # ==========================================================
 
 volumes:
 
   prometheus-data:
     name: ${PROMETHEUS_DATA_VOLUME}
-
-  dockeropt-postgres-data:
-    name: ${POSTGRES_DATA_VOLUME}
 
 
 # ==========================================================
@@ -203,107 +204,6 @@ services:
 
 
   # ==========================================================
-  # POSTGRESQL
-  # ==========================================================
-
-  postgres:
-
-    image: ${POSTGRES_IMAGE}
-
-    container_name: ${POSTGRES_CONTAINER_NAME}
-
-    # ========================================================
-    # IMPORTANT
-    #
-    # Le port est fourni par Jenkins.
-    # Aucun port PostgreSQL n'est écrit en dur.
-    # ========================================================
-
-    command:
-
-      - "postgres"
-
-      - "-c"
-
-      - "port=${POSTGRES_PORT}"
-
-      - "-c"
-
-      - "listen_addresses=*"
-
-
-    # ========================================================
-    # PORT HOST -> PORT CONTAINER
-    #
-    # Les deux valeurs viennent du credential Jenkins.
-    # ========================================================
-
-    ports:
-
-      - "${POSTGRES_PORT}:${POSTGRES_PORT}"
-
-
-    # ========================================================
-    # PORT INTERNE DOCKER
-    # ========================================================
-
-    expose:
-
-      - "${POSTGRES_PORT}"
-
-
-    # ========================================================
-    # POSTGRES ENVIRONMENT
-    # ========================================================
-
-    environment:
-
-      POSTGRES_DB: "${POSTGRES_DB}"
-
-      POSTGRES_USER: "${POSTGRES_USER}"
-
-      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
-
-
-    # ========================================================
-    # DATABASE VOLUME
-    # ========================================================
-
-    volumes:
-
-      - dockeropt-postgres-data:/var/lib/postgresql/data
-
-
-    networks:
-
-      - dockeropt-network
-
-
-    restart: unless-stopped
-
-
-    # ========================================================
-    # POSTGRES HEALTHCHECK
-    # ========================================================
-
-    healthcheck:
-
-      test:
-        [
-          "CMD-SHELL",
-          "pg_isready -h localhost -p ${POSTGRES_PORT} -U ${POSTGRES_USER} -d ${POSTGRES_DB}"
-        ]
-
-      interval: 10s
-
-      timeout: 5s
-
-      retries: 10
-
-      start_period: 10s
-
-
-  # ==========================================================
   # NODE EXPORTER
   # ==========================================================
 
@@ -430,6 +330,11 @@ services:
 
   # ==========================================================
   # DOCKEROPT BACKEND
+  #
+  # Se connecte à un PostgreSQL EXTERNE (serveur partagé,
+  # credentials POSTGRES_HOST_ID / POSTGRES_PORT_ID / ...).
+  # Aucun depends_on vers un service "postgres" local :
+  # il n'existe plus dans cette stack.
   # ==========================================================
 
   dockeropt-backend:
@@ -454,7 +359,7 @@ services:
 
 
       # ======================================================
-      # DATABASE
+      # DATABASE (serveur PostgreSQL externe partagé)
       # ======================================================
 
       DATABASE_URL: "${DATABASE_URL}"
@@ -534,10 +439,6 @@ services:
     restart: unless-stopped
 
     depends_on:
-
-      postgres:
-
-        condition: service_healthy
 
       prometheus:
 
