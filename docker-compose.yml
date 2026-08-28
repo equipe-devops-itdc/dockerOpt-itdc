@@ -229,48 +229,41 @@ services:
   # ==========================================================
 
   postgres:
+  image: ${POSTGRES_IMAGE}
 
-    image: ${POSTGRES_IMAGE}
+  container_name: ${POSTGRES_CONTAINER_NAME}
 
-    container_name: ${POSTGRES_CONTAINER_NAME}
+  command:
+    - "postgres"
+    - "-c"
+    - "port=${POSTGRES_PORT}"
 
-    # PostgreSQL n'est pas exposé sur l'hôte.
-    # Il est accessible uniquement par les autres conteneurs.
-    expose:
+  expose:
+    - "${POSTGRES_PORT}"
 
-      - "5432"
+  environment:
+    POSTGRES_DB: ${POSTGRES_DB}
+    POSTGRES_USER: ${POSTGRES_USER}
+    POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
 
-    environment:
+  volumes:
+    - dockeropt-postgres-data:/var/lib/postgresql/data
 
-      POSTGRES_DB: ${POSTGRES_DB}
+  networks:
+    - dockeropt-network
 
-      POSTGRES_USER: ${POSTGRES_USER}
+  restart: unless-stopped
 
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+  healthcheck:
+    test:
+      [
+        "CMD-SHELL",
+        "pg_isready -h localhost -p ${POSTGRES_PORT} -U ${POSTGRES_USER} -d ${POSTGRES_DB}"
+      ]
 
-    volumes:
-
-      - dockeropt-postgres-data:/var/lib/postgresql/data
-
-    networks:
-
-      - dockeropt-network
-
-    restart: unless-stopped
-
-    healthcheck:
-
-      test:
-        [
-          "CMD-SHELL",
-          "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"
-        ]
-
-      interval: 10s
-
-      timeout: 5s
-
-      retries: 10
+    interval: 10s
+    timeout: 5s
+    retries: 10
 
 
   # ==========================================================
