@@ -463,22 +463,6 @@ EOF
 
                     fi
 
-                    if ! command -v nc > /dev/null 2>&1; then
-
-                        echo "WARNING: 'nc' is not installed, skipping raw TCP pre-check (pg_isready below is authoritative)."
-
-                    else
-
-                        if ! nc -z -w5 "${POSTGRES_HOST}" "${POSTGRES_PORT}"; then
-
-                            echo "ERROR: cannot reach ${POSTGRES_HOST}:${POSTGRES_PORT} over TCP."
-
-                            exit 1
-
-                        fi
-
-                    fi
-
                     pg_isready -h "${POSTGRES_HOST}" -p "${POSTGRES_PORT}" -U "${POSTGRES_USER}" -d dockeropt
 
 
