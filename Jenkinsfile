@@ -227,11 +227,11 @@ POSTGRES_DATA_VOLUME=dockeropt-postgres-data
 # ==========================================================
 
 # Communication INTERNE Docker
-# PostgreSQL écoute sur 5432 dans son conteneur.
+# PostgreSQL écoute sur 5268 dans son conteneur.
 
 DB_HOST=postgres
 
-DB_PORT=5432
+DB_PORT=5268
 
 DB_NAME=dockeropt
 
@@ -241,7 +241,7 @@ DB_PASSWORD=${POSTGRES_PASSWORD}
 
 DB_POOL_MAX=10
 
-DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/dockeropt
+DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5268/dockeropt
 
 
 # ==========================================================
