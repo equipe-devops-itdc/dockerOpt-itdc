@@ -1,38 +1,43 @@
+```groovy
 pipeline {
 
     agent any
 
+
+    // ==========================================================
+    // ENVIRONMENT
+    // ==========================================================
+
     environment {
 
-        // ==========================================================
+        // ------------------------------------------------------
         // DOCKER
-        // ==========================================================
+        // ------------------------------------------------------
 
         COMPOSE_PROJECT_NAME = 'dockeropt'
 
         DOCKER_TAG = "${BUILD_NUMBER}"
 
 
-        // ==========================================================
+        // ------------------------------------------------------
         // POSTGRESQL - JENKINS CREDENTIALS
         //
-        // Serveur PostgreSQL EXTERNE partagé (pas un conteneur
-        // local). POSTGRES_HOST_ID = IP réelle du serveur.
-        // POSTGRES_PORT_ID = port réel d'écoute (ex: 5435).
-        // ==========================================================
+        // PostgreSQL est EXTERNE.
+        // Aucun conteneur PostgreSQL dans cette stack.
+        // ------------------------------------------------------
 
-        POSTGRES_HOST = credentials('POSTGRES_HOST_ID')
+        POSTGRES_HOST_RAW = credentials('POSTGRES_HOST_ID')
 
-        POSTGRES_PORT = credentials('POSTGRES_PORT_ID')
+        POSTGRES_PORT_RAW = credentials('POSTGRES_PORT_ID')
 
-        POSTGRES_USER = credentials('POSTGRES_USER_ID')
+        POSTGRES_USER_RAW = credentials('POSTGRES_USER_ID')
 
         POSTGRES_PASSWORD = credentials('POSTGRES_PASSWORD_ID')
 
 
-        // ==========================================================
+        // ------------------------------------------------------
         // ADMIN / JWT
-        // ==========================================================
+        // ------------------------------------------------------
 
         ADMIN_EMAIL = credentials('DOCKEROPT_ADMIN_EMAIL_ID')
 
@@ -41,9 +46,9 @@ pipeline {
         JWT_SECRET = credentials('DOCKEROPT_JWT_SECRET_ID')
 
 
-        // ==========================================================
+        // ------------------------------------------------------
         // SMTP
-        // ==========================================================
+        // ------------------------------------------------------
 
         SMTP_USER = credentials('DOCKEROPT_SMTP_USER_ID')
 
@@ -58,9 +63,9 @@ pipeline {
     stages {
 
 
-        // ==========================================================
+        // ======================================================
         // UPDATE REPOSITORY
-        // ==========================================================
+        // ======================================================
 
         stage('Update repo') {
 
@@ -81,9 +86,172 @@ pipeline {
         }
 
 
-        // ==========================================================
+        // ======================================================
+        // PREPARE POSTGRESQL VARIABLES
+        // ======================================================
+
+        stage('Prepare PostgreSQL credentials') {
+
+            steps {
+
+                sh '''
+                    set -e
+
+                    echo "=========================================="
+                    echo "PREPARING POSTGRESQL CREDENTIALS"
+                    echo "=========================================="
+
+                    # Nettoyage des éventuels CR/LF/espaces
+                    # présents accidentellement dans les Secret Text.
+
+                    POSTGRES_HOST="$(printf '%s' "${POSTGRES_HOST_RAW}" | tr -d '\\r\\n' | xargs)"
+
+                    POSTGRES_PORT="$(printf '%s' "${POSTGRES_PORT_RAW}" | tr -d '\\r\\n' | xargs)"
+
+                    POSTGRES_USER="$(printf '%s' "${POSTGRES_USER_RAW}" | tr -d '\\r\\n')"
+
+                    # Vérification HOST
+                    if [ -z "${POSTGRES_HOST}" ]; then
+                        echo "ERROR: POSTGRES_HOST is empty."
+                        exit 1
+                    fi
+
+                    # Vérification PORT
+                    if [ -z "${POSTGRES_PORT}" ]; then
+                        echo "ERROR: POSTGRES_PORT is empty."
+                        exit 1
+                    fi
+
+                    if ! printf '%s' "${POSTGRES_PORT}" | grep -Eq '^[0-9]+$'; then
+                        echo "ERROR: POSTGRES_PORT is not numeric."
+                        exit 1
+                    fi
+
+                    # Vérification USER
+                    if [ -z "${POSTGRES_USER}" ]; then
+                        echo "ERROR: POSTGRES_USER is empty."
+                        exit 1
+                    fi
+
+                    echo "PostgreSQL host: configured"
+                    echo "PostgreSQL port: ${POSTGRES_PORT}"
+                    echo "PostgreSQL user: configured"
+
+                    # Export pour les étapes suivantes.
+                    #
+                    # Aucun mot de passe n'est écrit ici.
+                    cat > .postgres.env <<EOF
+POSTGRES_HOST=${POSTGRES_HOST}
+POSTGRES_PORT=${POSTGRES_PORT}
+POSTGRES_USER=${POSTGRES_USER}
+EOF
+
+                    chmod 600 .postgres.env
+
+                    echo "PostgreSQL variables prepared."
+                '''
+            }
+        }
+
+
+        // ======================================================
+        // VERIFY POSTGRESQL
+        // ======================================================
+
+        stage('Verify PostgreSQL configuration') {
+
+            steps {
+
+                sh '''
+                    set -e
+
+                    echo "=========================================="
+                    echo "VERIFY POSTGRESQL CONFIGURATION"
+                    echo "=========================================="
+
+                    . ./.postgres.env
+
+                    echo "Host: ${POSTGRES_HOST}"
+                    echo "Port: ${POSTGRES_PORT}"
+                    echo "User: ${POSTGRES_USER}"
+
+                    echo ""
+                    echo "Checking TCP connectivity..."
+
+                    if ! timeout 5 bash -c "</dev/tcp/${POSTGRES_HOST}/${POSTGRES_PORT}"; then
+
+                        echo "ERROR: PostgreSQL TCP port is unreachable."
+
+                        echo "Host: ${POSTGRES_HOST}"
+                        echo "Port: ${POSTGRES_PORT}"
+
+                        exit 1
+                    fi
+
+                    echo "TCP connection: OK"
+
+                    echo ""
+                    echo "Checking PostgreSQL service..."
+
+                    if ! PGCONNECT_TIMEOUT=5 pg_isready \
+                        -h "${POSTGRES_HOST}" \
+                        -p "${POSTGRES_PORT}" \
+                        -U "${POSTGRES_USER}" \
+                        -d dockeropt
+                    then
+
+                        echo ""
+                        echo "ERROR: PostgreSQL does not accept the connection."
+
+                        echo "Host: ${POSTGRES_HOST}"
+                        echo "Port: ${POSTGRES_PORT}"
+                        echo "User: ${POSTGRES_USER}"
+                        echo "Database: dockeropt"
+
+                        exit 1
+                    fi
+
+                    echo "PostgreSQL availability: OK"
+
+                    echo ""
+                    echo "Checking PostgreSQL authentication..."
+
+                    PGPASSWORD="${POSTGRES_PASSWORD}" \
+                    PGCONNECT_TIMEOUT=5 \
+                    psql \
+                        -h "${POSTGRES_HOST}" \
+                        -p "${POSTGRES_PORT}" \
+                        -U "${POSTGRES_USER}" \
+                        -d dockeropt \
+                        -c "SELECT current_database(), current_user;"
+
+                    echo ""
+                    echo "PostgreSQL authentication: OK"
+
+
+                    echo ""
+                    echo "Checking PostgreSQL port..."
+
+                    PGPASSWORD="${POSTGRES_PASSWORD}" \
+                    psql \
+                        -h "${POSTGRES_HOST}" \
+                        -p "${POSTGRES_PORT}" \
+                        -U "${POSTGRES_USER}" \
+                        -d dockeropt \
+                        -c "SHOW port;"
+
+                    echo ""
+                    echo "=========================================="
+                    echo "POSTGRESQL VERIFICATION SUCCESSFUL"
+                    echo "=========================================="
+                '''
+            }
+        }
+
+
+        // ======================================================
         // GENERATE .ENV
-        // ==========================================================
+        // ======================================================
 
         stage('Generate .env') {
 
@@ -96,9 +264,9 @@ pipeline {
                     echo "GENERATING .ENV"
                     echo "=========================================="
 
+                    . ./.postgres.env
 
                     rm -f .env
-
 
                     cat > .env <<EOF
 
@@ -223,15 +391,7 @@ PROMETHEUS_DATA_VOLUME=prometheus-data
 
 
 # ==========================================================
-# POSTGRESQL (SERVEUR EXTERNE PARTAGE)
-#
-# IMPORTANT
-#
-# Valeurs provenant UNIQUEMENT des credentials Jenkins :
-# POSTGRES_HOST_ID / POSTGRES_PORT_ID /
-# POSTGRES_USER_ID / POSTGRES_PASSWORD_ID
-#
-# Il n'y a AUCUN conteneur postgres dans ce projet.
+# POSTGRESQL EXTERNE
 # ==========================================================
 
 POSTGRES_HOST=${POSTGRES_HOST}
@@ -368,7 +528,6 @@ LOAD_GENERATOR_CPUS=0.25
 
 EOF
 
-
                     chmod 600 .env
 
                     echo ".env generated successfully."
@@ -377,115 +536,9 @@ EOF
         }
 
 
-        // ==========================================================
-        // VERIFY VARIABLES + CONNECTIVITE POSTGRESQL EXTERNE
-        // ==========================================================
-
-        stage('Verify PostgreSQL configuration') {
-
-            steps {
-
-                sh '''
-                    set -e
-
-                    echo "=========================================="
-                    echo "VERIFY POSTGRESQL CONFIGURATION"
-                    echo "=========================================="
-
-
-                    if [ -z "${POSTGRES_PORT}" ]; then
-
-                        echo "ERROR: POSTGRES_PORT credential is empty."
-
-                        exit 1
-
-                    fi
-
-
-                    if ! echo "${POSTGRES_PORT}" | grep -Eq '^[0-9]+$'; then
-
-                        echo "ERROR: POSTGRES_PORT credential is not numeric."
-
-                        exit 1
-
-                    fi
-
-
-                    if [ -z "${POSTGRES_HOST}" ]; then
-
-                        echo "ERROR: POSTGRES_HOST credential is empty."
-
-                        exit 1
-
-                    fi
-
-
-                    if [ -z "${POSTGRES_USER}" ]; then
-
-                        echo "ERROR: POSTGRES_USER credential is empty."
-
-                        exit 1
-
-                    fi
-
-
-                    if [ -z "${POSTGRES_PASSWORD}" ]; then
-
-                        echo "ERROR: POSTGRES_PASSWORD credential is empty."
-
-                        exit 1
-
-                    fi
-
-
-                    echo "POSTGRES_HOST credential: OK"
-
-                    echo "POSTGRES_PORT credential: OK"
-
-                    echo "POSTGRES_USER credential: OK"
-
-                    echo "POSTGRES_PASSWORD credential: OK"
-
-
-                    echo ""
-
-                    echo "Checking network connectivity to external PostgreSQL server..."
-
-                    if ! command -v pg_isready > /dev/null 2>&1; then
-
-                        echo "ERROR: pg_isready is not installed on this Jenkins agent."
-
-                        echo "Install the PostgreSQL client package, e.g.:"
-
-                        echo "    sudo dnf install -y postgresql"
-
-                        exit 1
-
-                    fi
-
-                    pg_isready -h "${POSTGRES_HOST}" -p "${POSTGRES_PORT}" -U "${POSTGRES_USER}" -d dockeropt
-
-
-                    echo "External PostgreSQL server: OK"
-
-
-                    echo ""
-
-                    echo "Checking generated Compose configuration for the backend DB variables..."
-
-
-                    docker compose --env-file .env config | grep -A 20 'dockeropt-backend:' > /tmp/backend-compose-config.txt
-
-
-                    echo "Backend Compose configuration generated successfully."
-                '''
-            }
-        }
-
-
-        // ==========================================================
+        // ======================================================
         // VALIDATE COMPOSE
-        // ==========================================================
+        // ======================================================
 
         stage('Validate Compose') {
 
@@ -498,9 +551,7 @@ EOF
                     echo "VALIDATING DOCKER COMPOSE"
                     echo "=========================================="
 
-
                     docker compose --env-file .env config > /tmp/docker-compose-config.yml
-
 
                     echo "Docker Compose configuration: OK"
                 '''
@@ -508,9 +559,9 @@ EOF
         }
 
 
-        // ==========================================================
+        // ======================================================
         // DOCKER CHECK
-        // ==========================================================
+        // ======================================================
 
         stage('Docker check') {
 
@@ -523,16 +574,11 @@ EOF
                     echo "DOCKER CHECK"
                     echo "=========================================="
 
-
                     docker --version
 
                     docker compose version
 
-
-                    echo "Checking Docker daemon..."
-
                     docker info > /dev/null
-
 
                     echo "Docker daemon: OK"
                 '''
@@ -540,9 +586,9 @@ EOF
         }
 
 
-        // ==========================================================
+        // ======================================================
         // BUILD IMAGES
-        // ==========================================================
+        // ======================================================
 
         stage('Build images') {
 
@@ -555,9 +601,7 @@ EOF
                     echo "BUILDING DOCKER IMAGES"
                     echo "=========================================="
 
-
                     docker compose --env-file .env build
-
 
                     echo "Docker images built successfully."
                 '''
@@ -565,9 +609,9 @@ EOF
         }
 
 
-        // ==========================================================
+        // ======================================================
         // DEPLOY
-        // ==========================================================
+        // ======================================================
 
         stage('Deploy') {
 
@@ -580,7 +624,6 @@ EOF
                     echo "STOPPING OLD DEPLOYMENT"
                     echo "=========================================="
 
-
                     docker compose --env-file .env down --remove-orphans || true
 
 
@@ -588,9 +631,7 @@ EOF
                     echo "STARTING DEPLOYMENT"
                     echo "=========================================="
 
-
                     docker compose --env-file .env up -d
-
 
                     echo "Deployment started successfully."
                 '''
@@ -598,64 +639,49 @@ EOF
         }
 
 
-        // ==========================================================
-        // WAIT POSTGRES (serveur externe, pas de conteneur)
-        // ==========================================================
+        // ======================================================
+        // TEST POSTGRESQL FROM BACKEND CONTAINER
+        // ======================================================
 
-        stage('Wait for PostgreSQL') {
+        stage('Verify PostgreSQL from backend container') {
 
             steps {
 
                 sh '''
                     set -e
 
+                    . ./.postgres.env
+
                     echo "=========================================="
-                    echo "WAITING FOR EXTERNAL POSTGRESQL"
+                    echo "VERIFY POSTGRESQL FROM BACKEND CONTAINER"
                     echo "=========================================="
 
+                    echo "Testing TCP connection from dockeropt-backend..."
 
-                    ATTEMPTS=0
+                    if docker exec dockeropt-backend \
+                        sh -c "timeout 5 bash -c '</dev/tcp/${POSTGRES_HOST}/${POSTGRES_PORT}'"
+                    then
 
-                    MAX_ATTEMPTS=30
+                        echo "Backend -> PostgreSQL TCP: OK"
 
+                    else
 
-                    until pg_isready \
-                        -h "${POSTGRES_HOST}" \
-                        -p "${POSTGRES_PORT}" \
-                        -U "${POSTGRES_USER}" \
-                        -d dockeropt
-                    do
+                        echo "Backend -> PostgreSQL TCP: FAILED"
 
-                        ATTEMPTS=$((ATTEMPTS + 1))
+                        docker logs dockeropt-backend --tail 100 || true
 
-
-                        if [ "${ATTEMPTS}" -ge "${MAX_ATTEMPTS}" ]; then
-
-                            echo "External PostgreSQL did not become reachable."
-
-                            exit 1
-
-                        fi
-
-
-                        echo "External PostgreSQL not reachable yet..."
-
-                        sleep 2
-
-                    done
-
-
-                    echo "External PostgreSQL is READY."
+                        exit 1
+                    fi
                 '''
             }
         }
 
 
-        // ==========================================================
-        // HEALTH CHECK
-        // ==========================================================
+        // ======================================================
+        // WAIT FOR BACKEND
+        // ======================================================
 
-        stage('Health check') {
+        stage('Backend health check') {
 
             steps {
 
@@ -663,54 +689,11 @@ EOF
                     set -e
 
                     echo "=========================================="
-                    echo "HEALTH CHECK"
-                    echo "=========================================="
-
-
-                    docker compose --env-file .env ps
-
-
-                    echo ""
-                    echo "=========================================="
-                    echo "VERIFY EXTERNAL POSTGRESQL"
-                    echo "=========================================="
-
-
-                    echo "Checking external PostgreSQL from the Jenkins agent..."
-
-
-                    pg_isready \
-                        -h "${POSTGRES_HOST}" \
-                        -p "${POSTGRES_PORT}" \
-                        -U "${POSTGRES_USER}" \
-                        -d dockeropt
-
-
-                    echo "PostgreSQL: OK"
-
-
-                    echo ""
-                    echo "PostgreSQL server configuration:"
-
-
-                    PGPASSWORD="${POSTGRES_PASSWORD}" psql \
-                        -h "${POSTGRES_HOST}" \
-                        -p "${POSTGRES_PORT}" \
-                        -U "${POSTGRES_USER}" \
-                        -d dockeropt \
-                        -c "SHOW port;"
-
-
-                    echo ""
-                    echo "=========================================="
                     echo "BACKEND HEALTH CHECK"
                     echo "=========================================="
 
-
                     ATTEMPTS=0
-
                     MAX_ATTEMPTS=30
-
 
                     until docker exec dockeropt-backend \
                         wget -qO- \
@@ -720,19 +703,14 @@ EOF
 
                         ATTEMPTS=$((ATTEMPTS + 1))
 
-
                         if [ "${ATTEMPTS}" -ge "${MAX_ATTEMPTS}" ]; then
 
                             echo "Backend health check failed."
 
-
                             docker logs dockeropt-backend --tail 150 || true
 
-
                             exit 1
-
                         fi
-
 
                         echo "Backend not ready yet..."
 
@@ -740,20 +718,29 @@ EOF
 
                     done
 
-
                     echo "Backend: OK"
+                '''
+            }
+        }
 
 
-                    echo ""
+        // ======================================================
+        // FRONTEND HEALTH CHECK
+        // ======================================================
+
+        stage('Frontend health check') {
+
+            steps {
+
+                sh '''
+                    set -e
+
                     echo "=========================================="
                     echo "FRONTEND HEALTH CHECK"
                     echo "=========================================="
 
-
                     ATTEMPTS=0
-
                     MAX_ATTEMPTS=30
-
 
                     until docker exec dockeropt-frontend \
                         wget -qO- \
@@ -763,19 +750,14 @@ EOF
 
                         ATTEMPTS=$((ATTEMPTS + 1))
 
-
                         if [ "${ATTEMPTS}" -ge "${MAX_ATTEMPTS}" ]; then
 
                             echo "Frontend health check failed."
 
-
                             docker logs dockeropt-frontend --tail 100 || true
 
-
                             exit 1
-
                         fi
-
 
                         echo "Frontend not ready yet..."
 
@@ -783,19 +765,34 @@ EOF
 
                     done
 
-
                     echo "Frontend: OK"
+                '''
+            }
+        }
 
+
+        // ======================================================
+        // FINAL STATUS
+        // ======================================================
+
+        stage('Final status') {
+
+            steps {
+
+                sh '''
+                    set -e
 
                     echo ""
                     echo "=========================================="
                     echo "FINAL CONTAINER STATUS"
                     echo "=========================================="
 
+                    docker compose --env-file .env ps
+
+                    echo ""
 
                     docker ps \
                         --format "table {{.Names}}\\t{{.Status}}\\t{{.Ports}}"
-
 
                     echo ""
                     echo "=========================================="
@@ -817,7 +814,12 @@ EOF
 
             echo "Cleaning Jenkins workspace..."
 
+            sh '''
+                rm -f .env .postgres.env || true
+            '''
+
             cleanWs()
         }
     }
 }
+```

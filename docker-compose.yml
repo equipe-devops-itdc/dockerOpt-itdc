@@ -1,5 +1,6 @@
 # ==========================================================
-# NETWORK
+# DOCKEROPT - DOCKER COMPOSE
+# PostgreSQL EXTERNE
 # ==========================================================
 
 networks:
@@ -15,10 +16,6 @@ networks:
 
 # ==========================================================
 # VOLUMES
-#
-# IMPORTANT : plus de volume postgres ici.
-# PostgreSQL est un serveur EXTERNE partagé (voir credentials
-# POSTGRES_HOST_ID / POSTGRES_PORT_ID), pas un conteneur local.
 # ==========================================================
 
 volumes:
@@ -33,9 +30,9 @@ volumes:
 
 services:
 
-  # ==========================================================
+  # ========================================================
   # API GATEWAY
-  # ==========================================================
+  # ========================================================
 
   api-gateway:
 
@@ -80,9 +77,9 @@ services:
       retries: 3
 
 
-  # ==========================================================
+  # ========================================================
   # USER SERVICE
-  # ==========================================================
+  # ========================================================
 
   user-service:
 
@@ -121,9 +118,9 @@ services:
       retries: 3
 
 
-  # ==========================================================
+  # ========================================================
   # PRODUCT SERVICE
-  # ==========================================================
+  # ========================================================
 
   product-service:
 
@@ -162,9 +159,9 @@ services:
       retries: 3
 
 
-  # ==========================================================
+  # ========================================================
   # NOTIFICATION SERVICE
-  # ==========================================================
+  # ========================================================
 
   notification-service:
 
@@ -203,9 +200,9 @@ services:
       retries: 3
 
 
-  # ==========================================================
+  # ========================================================
   # NODE EXPORTER
-  # ==========================================================
+  # ========================================================
 
   node-exporter:
 
@@ -216,35 +213,28 @@ services:
     volumes:
 
       - /proc:/host/proc:ro
-
       - /sys:/host/sys:ro
-
       - /:/rootfs:ro
 
     command:
 
       - "--path.procfs=/host/proc"
-
       - "--path.sysfs=/host/sys"
-
       - "--path.rootfs=/rootfs"
-
       - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
 
     expose:
-
       - "${NODE_EXPORTER_PORT}"
 
     networks:
-
       - dockeropt-network
 
     restart: unless-stopped
 
 
-  # ==========================================================
+  # ========================================================
   # CADVISOR
-  # ==========================================================
+  # ========================================================
 
   cadvisor:
 
@@ -255,21 +245,15 @@ services:
     volumes:
 
       - /:/rootfs:ro
-
       - /var/run:/var/run:ro
-
       - /sys:/sys:ro
-
       - /var/lib/docker/:/var/lib/docker:ro
-
       - /dev/disk/:/dev/disk:ro
 
     expose:
-
       - "${CADVISOR_INTERNAL_PORT}"
 
     networks:
-
       - dockeropt-network
 
     restart: unless-stopped
@@ -277,9 +261,9 @@ services:
     privileged: true
 
 
-  # ==========================================================
+  # ========================================================
   # PROMETHEUS
-  # ==========================================================
+  # ========================================================
 
   prometheus:
 
@@ -312,11 +296,9 @@ services:
       - "--web.enable-lifecycle"
 
     expose:
-
       - "${PROMETHEUS_PORT}"
 
     networks:
-
       - dockeropt-network
 
     restart: unless-stopped
@@ -324,18 +306,13 @@ services:
     depends_on:
 
       - cadvisor
-
       - node-exporter
 
 
-  # ==========================================================
+  # ========================================================
   # DOCKEROPT BACKEND
-  #
-  # Se connecte à un PostgreSQL EXTERNE (serveur partagé,
-  # credentials POSTGRES_HOST_ID / POSTGRES_PORT_ID / ...).
-  # Aucun depends_on vers un service "postgres" local :
-  # il n'existe plus dans cette stack.
-  # ==========================================================
+  # PostgreSQL EXTERNE
+  # ========================================================
 
   dockeropt-backend:
 
@@ -346,7 +323,6 @@ services:
     container_name: ${DOCKEROPT_BACKEND_CONTAINER_NAME}
 
     expose:
-
       - "${DOCKEROPT_BACKEND_INTERNAL_PORT}"
 
     environment:
@@ -357,10 +333,9 @@ services:
 
       DOCKER_HOST: "${DOCKER_HOST}"
 
-
-      # ======================================================
-      # DATABASE (serveur PostgreSQL externe partagé)
-      # ======================================================
+      # ----------------------------------------------------
+      # POSTGRESQL EXTERNE
+      # ----------------------------------------------------
 
       DATABASE_URL: "${DATABASE_URL}"
 
@@ -376,10 +351,9 @@ services:
 
       DB_PASSWORD: "${DB_PASSWORD}"
 
-
-      # ======================================================
+      # ----------------------------------------------------
       # ADMIN
-      # ======================================================
+      # ----------------------------------------------------
 
       ADMIN_EMAIL: "${ADMIN_EMAIL}"
 
@@ -389,10 +363,9 @@ services:
 
       JWT_EXPIRES_IN: "${JWT_EXPIRES_IN}"
 
-
-      # ======================================================
+      # ----------------------------------------------------
       # SMTP
-      # ======================================================
+      # ----------------------------------------------------
 
       SMTP_HOST: "${SMTP_HOST}"
 
@@ -410,10 +383,9 @@ services:
 
       ALERT_CHECK_INTERVAL_MS: "${ALERT_CHECK_INTERVAL_MS}"
 
-
-      # ======================================================
+      # ----------------------------------------------------
       # PLATFORM
-      # ======================================================
+      # ----------------------------------------------------
 
       PLATFORM_URL: "${PLATFORM_URL}"
 
@@ -427,13 +399,11 @@ services:
 
       SECURITY_SCAN_TIMEOUT_MS: "${SECURITY_SCAN_TIMEOUT_MS}"
 
-
     volumes:
 
       - /var/run/docker.sock:/var/run/docker.sock
 
     networks:
-
       - dockeropt-network
 
     restart: unless-stopped
@@ -441,13 +411,12 @@ services:
     depends_on:
 
       prometheus:
-
         condition: service_started
 
 
-  # ==========================================================
-  # DOCKEROPT FRONTEND
-  # ==========================================================
+  # ========================================================
+  # FRONTEND
+  # ========================================================
 
   dockeropt-frontend:
 
@@ -466,7 +435,6 @@ services:
       API_URL: "${DOCKEROPT_FRONTEND_API_URL}"
 
     networks:
-
       - dockeropt-network
 
     restart: unless-stopped
@@ -476,9 +444,9 @@ services:
       - dockeropt-backend
 
 
-  # ==========================================================
+  # ========================================================
   # LOAD GENERATOR
-  # ==========================================================
+  # ========================================================
 
   load-generator:
 
@@ -491,7 +459,6 @@ services:
       API_GATEWAY_URL: "${LOAD_GENERATOR_API_GATEWAY_URL}"
 
     networks:
-
       - dockeropt-network
 
     restart: unless-stopped
