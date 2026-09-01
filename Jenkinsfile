@@ -5,7 +5,7 @@ pipeline {
         COMPOSE_PROJECT_NAME = 'dockeropt'
         DOCKER_TAG = "${BUILD_NUMBER}"
 
-        // Credentials Jenkins
+        // On charge les credentials Jenkins dans des variables d'environnement Shell
         POSTGRES_USER = credentials('POSTGRES_USER_ID')
         POSTGRES_PASSWORD = credentials('POSTGRES_PASSWORD_ID')
 
@@ -38,12 +38,12 @@ pipeline {
 
         stage('Build & Deploy') {
             steps {
-                sh """
+                // GUILLEMETS SIMPLES (''') : Groovy n'interfère pas avec la création du .env
+                sh '''
                     set -e
-                    rm -f .env
 
-                    # 1. Generation directe du fichier .env
-                    cat <<EOF > .env
+                    echo "--- 1. Génération du fichier .env ---"
+                    cat << 'EOF' > .env
 COMPOSE_PROJECT_NAME=dockeropt
 DOCKEROPT_NETWORK_NAME=dockeropt-network
 DOCKEROPT_NETWORK_SUBNET=172.20.0.0/16
@@ -126,30 +126,31 @@ FRONTEND_HOST_PORT=3000
 FRONTEND_INTERNAL_PORT=80
 DOCKEROPT_FRONTEND_API_URL=http://192.168.1.201:5000
 JWT_EXPIRES_IN=24h
-
-DB_USER=${POSTGRES_USER}
-DB_PASSWORD=${POSTGRES_PASSWORD}
-DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/dockeropt
-DOCKEROPT_BACKEND_IMAGE=dockeropt-backend:${DOCKER_TAG}
-DOCKEROPT_FRONTEND_IMAGE=dockeropt-frontend:${DOCKER_TAG}
-ADMIN_EMAIL=${ADMIN_EMAIL}
-ADMIN_PASSWORD=${ADMIN_PASSWORD}
-JWT_SECRET=${JWT_SECRET}
-SMTP_USER=${SMTP_USER}
-SMTP_PASSWORD=${SMTP_PASSWORD}
-SMTP_FROM=${SMTP_FROM}
-ALERT_EMAIL_TO=${ALERT_EMAIL_TO}
 EOF
 
-                    # 2. Verification immédiate de la présence du fichier
-                    ls -la .env
+                    # Insertion sécurisée des secrets transmis par Jenkins
+                    echo "DB_USER=${POSTGRES_USER}" >> .env
+                    echo "DB_PASSWORD=${POSTGRES_PASSWORD}" >> .env
+                    echo "DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/dockeropt" >> .env
+                    echo "DOCKEROPT_BACKEND_IMAGE=dockeropt-backend:${DOCKER_TAG}" >> .env
+                    echo "DOCKEROPT_FRONTEND_IMAGE=dockeropt-frontend:${DOCKER_TAG}" >> .env
+                    echo "ADMIN_EMAIL=${ADMIN_EMAIL}" >> .env
+                    echo "ADMIN_PASSWORD=${ADMIN_PASSWORD}" >> .env
+                    echo "JWT_SECRET=${JWT_SECRET}" >> .env
+                    echo "SMTP_USER=${SMTP_USER}" >> .env
+                    echo "SMTP_PASSWORD=${SMTP_PASSWORD}" >> .env
+                    echo "SMTP_FROM=${SMTP_FROM}" >> .env
+                    echo "ALERT_EMAIL_TO=${ALERT_EMAIL_TO}" >> .env
 
-                    # 3. Execution directe de Docker Compose
+                    echo "--- 2. Contrôle du fichier .env ---"
+                    grep -E "POSTGRES_|DB_" .env
+
+                    echo "--- 3. Déploiement Docker Compose ---"
                     docker compose --env-file .env build
                     docker compose --env-file .env down --remove-orphans || true
                     docker compose --env-file .env up -d
                     docker image prune -f
-                """
+                '''
             }
         }
     }
