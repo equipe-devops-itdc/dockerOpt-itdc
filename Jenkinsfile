@@ -122,14 +122,13 @@ pipeline {
                 sh '''
                     set -e
                     
-                    # Construction des variables composees dans le shell
                     export DB_USER="${POSTGRES_USER}"
                     export DB_PASSWORD="${POSTGRES_PASSWORD}"
                     export DATABASE_URL="postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/dockeropt"
                     export DOCKEROPT_BACKEND_IMAGE="dockeropt-backend:${DOCKER_TAG}"
                     export DOCKEROPT_FRONTEND_IMAGE="dockeropt-frontend:${DOCKER_TAG}"
 
-                    # Plus besoin de .env, docker compose utilise les variables exportees
+                    # Executer docker compose sans le drapeau --env-file
                     docker compose build
                     docker compose down --remove-orphans || true
                     docker compose up -d

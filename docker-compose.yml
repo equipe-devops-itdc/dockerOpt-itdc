@@ -1,244 +1,179 @@
-# ==========================================================
-# DOCKEROPT - DOCKER COMPOSE (PRODUCTION WITH DOCKER POSTGRES)
-# ==========================================================
+version: '3.8'
 
 networks:
   dockeropt-network:
-    name: ${DOCKEROPT_NETWORK_NAME}
+    name: ${DOCKEROPT_NETWORK_NAME:-dockeropt-network}
     driver: bridge
     ipam:
       config:
-        - subnet: ${DOCKEROPT_NETWORK_SUBNET}
+        - subnet: ${DOCKEROPT_NETWORK_SUBNET:-172.20.0.0/16}
 
 volumes:
-  prometheus-data:
-    name: ${PROMETHEUS_DATA_VOLUME}
   postgres-data:
-    name: ${POSTGRES_DATA_VOLUME}
+    name: ${POSTGRES_DATA_VOLUME:-dockeropt-postgres-data}
+  prometheus-data:
+    name: ${PROMETHEUS_DATA_VOLUME:-prometheus-data}
 
 services:
-
-  # BASE DE DONNEES POSTGRESQL (DOCKER)
   postgres:
-    image: ${POSTGRES_IMAGE}
-    container_name: ${POSTGRES_CONTAINER_NAME}
-    ports:
-      - "${POSTGRES_HOST_PORT}:5432"
+    image: ${POSTGRES_IMAGE:-postgres:16-alpine}
+    container_name: ${POSTGRES_CONTAINER_NAME:-dockeropt-postgres}
+    restart: always
     environment:
-      POSTGRES_DB: "${DB_NAME}"
-      POSTGRES_USER: "${DB_USER}"
-      POSTGRES_PASSWORD: "${DB_PASSWORD}"
+      POSTGRES_USER: ${DB_USER:-dockeropt}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-dockeropt_pass}
+      POSTGRES_DB: ${DB_NAME:-dockeropt}
+    ports:
+      - "${POSTGRES_HOST_PORT:-5435}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     networks:
       - dockeropt-network
-    restart: always
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
-  # API GATEWAY
   api-gateway:
-    build: ${API_GATEWAY_IMAGE}
-    container_name: ${API_GATEWAY_CONTAINER_NAME}
-    expose:
-      - "${API_GATEWAY_PORT}"
+    build:
+      context: ${API_GATEWAY_IMAGE:-./services/api-gateway}
+    container_name: ${API_GATEWAY_CONTAINER_NAME:-dockeropt-api-gateway}
+    restart: always
+    ports:
+      - "${API_GATEWAY_PORT:-5001}:5001"
     environment:
-      PORT: "${API_GATEWAY_PORT}"
-      USER_SERVICE_URL: "${API_GATEWAY_USER_SERVICE_URL}"
-      PRODUCT_SERVICE_URL: "${API_GATEWAY_PRODUCT_SERVICE_URL}"
-      NOTIFICATION_SERVICE_URL: "${API_GATEWAY_NOTIFICATION_SERVICE_URL}"
+      USER_SERVICE_URL: ${API_GATEWAY_USER_SERVICE_URL:-http://user-service:5002}
+      PRODUCT_SERVICE_URL: ${API_GATEWAY_PRODUCT_SERVICE_URL:-http://product-service:5003}
+      NOTIFICATION_SERVICE_URL: ${API_GATEWAY_NOTIFICATION_SERVICE_URL:-http://notification-service:5004}
+    deploy:
+      resources:
+        limits:
+          cpus: '${API_GATEWAY_CPUS:-0.5}'
+          memory: ${API_GATEWAY_MEM_LIMIT:-256m}
     networks:
       - dockeropt-network
-    restart: always
-    mem_limit: ${API_GATEWAY_MEM_LIMIT}
-    cpus: "${API_GATEWAY_CPUS}"
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:${API_GATEWAY_PORT}/health"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
 
-  # USER SERVICE
   user-service:
-    build: ${USER_SERVICE_IMAGE}
-    container_name: ${USER_SERVICE_CONTAINER_NAME}
-    expose:
-      - "${USER_SERVICE_PORT}"
-    environment:
-      PORT: "${USER_SERVICE_PORT}"
+    build:
+      context: ${USER_SERVICE_IMAGE:-./services/user-service}
+    container_name: ${USER_SERVICE_CONTAINER_NAME:-dockeropt-user-service}
+    restart: always
+    ports:
+      - "${USER_SERVICE_PORT:-5002}:5002"
+    deploy:
+      resources:
+        limits:
+          cpus: '${USER_SERVICE_CPUS:-0.5}'
+          memory: ${USER_SERVICE_MEM_LIMIT:-256m}
     networks:
       - dockeropt-network
-    restart: always
-    mem_limit: ${USER_SERVICE_MEM_LIMIT}
-    cpus: "${USER_SERVICE_CPUS}"
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:${USER_SERVICE_PORT}/health"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
 
-  # PRODUCT SERVICE
   product-service:
-    build: ${PRODUCT_SERVICE_IMAGE}
-    container_name: ${PRODUCT_SERVICE_CONTAINER_NAME}
-    expose:
-      - "${PRODUCT_SERVICE_PORT}"
-    environment:
-      PORT: "${PRODUCT_SERVICE_PORT}"
+    build:
+      context: ${PRODUCT_SERVICE_IMAGE:-./services/product-service}
+    container_name: ${PRODUCT_SERVICE_CONTAINER_NAME:-dockeropt-product-service}
+    restart: always
+    ports:
+      - "${PRODUCT_SERVICE_PORT:-5003}:5003"
+    deploy:
+      resources:
+        limits:
+          cpus: '${PRODUCT_SERVICE_CPUS:-0.5}'
+          memory: ${PRODUCT_SERVICE_MEM_LIMIT:-256m}
     networks:
       - dockeropt-network
-    restart: always
-    mem_limit: ${PRODUCT_SERVICE_MEM_LIMIT}
-    cpus: "${PRODUCT_SERVICE_CPUS}"
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:${PRODUCT_SERVICE_PORT}/health"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
 
-  # NOTIFICATION SERVICE
   notification-service:
-    build: ${NOTIFICATION_SERVICE_IMAGE}
-    container_name: ${NOTIFICATION_SERVICE_CONTAINER_NAME}
-    expose:
-      - "${NOTIFICATION_SERVICE_PORT}"
-    environment:
-      PORT: "${NOTIFICATION_SERVICE_PORT}"
+    build:
+      context: ${NOTIFICATION_SERVICE_IMAGE:-./services/notification-service}
+    container_name: ${NOTIFICATION_SERVICE_CONTAINER_NAME:-dockeropt-notification-service}
+    restart: always
+    ports:
+      - "${NOTIFICATION_SERVICE_PORT:-5004}:5004"
+    deploy:
+      resources:
+        limits:
+          cpus: '${NOTIFICATION_SERVICE_CPUS:-0.5}'
+          memory: ${NOTIFICATION_SERVICE_MEM_LIMIT:-256m}
     networks:
       - dockeropt-network
-    restart: always
-    mem_limit: ${NOTIFICATION_SERVICE_MEM_LIMIT}
-    cpus: "${NOTIFICATION_SERVICE_CPUS}"
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:${NOTIFICATION_SERVICE_PORT}/health"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
 
-  # NODE EXPORTER
   node-exporter:
-    image: ${NODE_EXPORTER_IMAGE}
-    container_name: ${NODE_EXPORTER_CONTAINER_NAME}
-    volumes:
-      - /proc:/host/proc:ro
-      - /sys:/host/sys:ro
-      - /:/rootfs:ro
-    command:
-      - "--path.procfs=/host/proc"
-      - "--path.sysfs=/host/sys"
-      - "--path.rootfs=/rootfs"
-      - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
-    expose:
-      - "${NODE_EXPORTER_PORT}"
+    image: ${NODE_EXPORTER_IMAGE:-prom/node-exporter:latest}
+    container_name: ${NODE_EXPORTER_CONTAINER_NAME:-dockeropt-node-exporter}
+    restart: always
+    ports:
+      - "${NODE_EXPORTER_PORT:-9100}:9100"
     networks:
       - dockeropt-network
-    restart: always
 
-  # CADVISOR
   cadvisor:
-    image: ${CADVISOR_IMAGE}
-    container_name: ${CADVISOR_CONTAINER_NAME}
+    image: ${CADVISOR_IMAGE:-gcr.io/cadvisor/cadvisor:latest}
+    container_name: ${CADVISOR_CONTAINER_NAME:-dockeropt-cadvisor}
+    restart: always
+    ports:
+      - "${CADVISOR_INTERNAL_PORT:-8080}:8080"
     volumes:
       - /:/rootfs:ro
       - /var/run:/var/run:ro
       - /sys:/sys:ro
       - /var/lib/docker/:/var/lib/docker:ro
       - /dev/disk/:/dev/disk:ro
-    expose:
-      - "${CADVISOR_INTERNAL_PORT}"
     networks:
       - dockeropt-network
-    restart: always
-    privileged: true
 
-  # PROMETHEUS
   prometheus:
-    image: ${PROMETHEUS_IMAGE}
-    container_name: ${PROMETHEUS_CONTAINER_NAME}
+    image: ${PROMETHEUS_IMAGE:-prom/prometheus:latest}
+    container_name: ${PROMETHEUS_CONTAINER_NAME:-dockeropt-prometheus}
+    restart: always
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
     volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - ./prometheus/alert.rules.yml:/etc/prometheus/alert.rules.yml:ro
       - prometheus-data:/prometheus
-      - /var/run/docker.sock:/var/run/docker.sock:ro
     command:
-      - "--config.file=/etc/prometheus/prometheus.yml"
-      - "--storage.tsdb.path=/prometheus"
-      - "--storage.tsdb.retention.time=${PROMETHEUS_RETENTION}"
-      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
-      - "--web.console.templates=/usr/share/prometheus/consoles"
-      - "--web.enable-lifecycle"
-    expose:
-      - "${PROMETHEUS_PORT}"
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=${PROMETHEUS_RETENTION:-30d}'
     networks:
       - dockeropt-network
-    restart: always
-    depends_on:
-      - cadvisor
-      - node-exporter
 
-  # DOCKEROPT BACKEND
-  dockeropt-backend:
-    build: ${DOCKEROPT_BACKEND_BUILD}
-    image: ${DOCKEROPT_BACKEND_IMAGE}
-    container_name: ${DOCKEROPT_BACKEND_CONTAINER_NAME}
+  backend:
+    build:
+      context: ${DOCKEROPT_BACKEND_BUILD:-./dockeropt-platform/backend}
+    image: ${DOCKEROPT_BACKEND_IMAGE:-dockeropt-backend:latest}
+    container_name: ${DOCKEROPT_BACKEND_CONTAINER_NAME:-dockeropt-backend}
+    restart: always
     ports:
-      - "${BACKEND_HOST_PORT}:${DOCKEROPT_BACKEND_INTERNAL_PORT}"
-    expose:
-      - "${DOCKEROPT_BACKEND_INTERNAL_PORT}"
+      - "${BACKEND_HOST_PORT:-5000}:5000"
     environment:
-      PORT: "${DOCKEROPT_BACKEND_INTERNAL_PORT}"
-      PROMETHEUS_URL: "${PROMETHEUS_URL}"
-      DOCKER_HOST: "${DOCKER_HOST}"
-      DATABASE_URL: "${DATABASE_URL}"
-      DB_HOST: "${DB_HOST}"
-      DB_PORT: "${DB_PORT}"
-      DB_POOL_MAX: "${DB_POOL_MAX}"
-      DB_NAME: "${DB_NAME}"
-      DB_USER: "${DB_USER}"
-      DB_PASSWORD: "${DB_PASSWORD}"
-      ADMIN_EMAIL: "${ADMIN_EMAIL}"
-      ADMIN_PASSWORD: "${ADMIN_PASSWORD}"
-      JWT_SECRET: "${JWT_SECRET}"
-      JWT_EXPIRES_IN: "${JWT_EXPIRES_IN}"
-      SMTP_HOST: "${SMTP_HOST}"
-      SMTP_PORT: "${SMTP_PORT}"
-      SMTP_SECURE: "${SMTP_SECURE}"
-      SMTP_USER: "${SMTP_USER}"
-      SMTP_PASSWORD: "${SMTP_PASSWORD}"
-      SMTP_FROM: "${SMTP_FROM}"
-      ALERT_EMAIL_TO: "${ALERT_EMAIL_TO}"
-      ALERT_CHECK_INTERVAL_MS: "${ALERT_CHECK_INTERVAL_MS}"
-      PLATFORM_URL: "${PLATFORM_URL}"
-      PLATFORM_INFRA_CONTAINERS: "${PLATFORM_INFRA_CONTAINERS}"
-      RECO_WINDOW_MS: "${RECO_WINDOW_MS}"
-      RECO_MIN_SAMPLES: "${RECO_MIN_SAMPLES}"
-      OPTIMIZATION_COOLDOWN_MS: "${OPTIMIZATION_COOLDOWN_MS}"
-      SECURITY_SCAN_TIMEOUT_MS: "${SECURITY_SCAN_TIMEOUT_MS}"
+      DATABASE_URL: ${DATABASE_URL:-postgresql://dockeropt:dockeropt_pass@postgres:5432/dockeropt}
+      DB_HOST: ${DB_HOST:-postgres}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_NAME: ${DB_NAME:-dockeropt}
+      DB_USER: ${DB_USER:-dockeropt}
+      DB_PASSWORD: ${DB_PASSWORD:-dockeropt_pass}
+      DB_POOL_MAX: ${DB_POOL_MAX:-10}
+      PROMETHEUS_URL: ${PROMETHEUS_URL:-http://prometheus:9090}
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      SMTP_FROM: ${SMTP_FROM}
+      ALERT_EMAIL_TO: ${ALERT_EMAIL_TO}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - dockeropt-network
-    restart: always
-    depends_on:
-      postgres:
-        condition: service_healthy
-      prometheus:
-        condition: service_started
 
-  # FRONTEND
-  dockeropt-frontend:
-    build: ${DOCKEROPT_FRONTEND_BUILD}
-    image: ${DOCKEROPT_FRONTEND_IMAGE}
-    container_name: ${DOCKEROPT_FRONTEND_CONTAINER_NAME}
+  frontend:
+    build:
+      context: ${DOCKEROPT_FRONTEND_BUILD:-./dockeropt-platform/frontend}
+    image: ${DOCKEROPT_FRONTEND_IMAGE:-dockeropt-frontend:latest}
+    container_name: ${DOCKEROPT_FRONTEND_CONTAINER_NAME:-dockeropt-frontend}
+    restart: always
     ports:
-      - "${FRONTEND_HOST_PORT}:${FRONTEND_INTERNAL_PORT}"
+      - "${FRONTEND_HOST_PORT:-3000}:80"
     environment:
-      API_URL: "${DOCKEROPT_FRONTEND_API_URL}"
+      REACT_APP_API_URL: ${DOCKEROPT_FRONTEND_API_URL:-http://192.168.1.201:5000}
     networks:
       - dockeropt-network
-    restart: always
-    depends_on:
-      - dockeropt-backend
