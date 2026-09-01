@@ -29,7 +29,7 @@ pipeline {
 
         stage('Free Port 5435') {
             steps {
-                // Arrêt de l'instance PostgreSQL native si elle tourne sur l'hôte pour libérer le port 5435
+                // Desactivation de l'instance native PostgreSQL pour eviter les conflits sur le port 5435
                 sh '''
                     sudo systemctl stop postgresql-17 || true
                     sudo systemctl disable postgresql-17 || true
@@ -39,12 +39,13 @@ pipeline {
 
         stage('Generate Environment File') {
             steps {
-                sh '''
+                sh """
                     set -e
                     rm -f .env
 
-                    cat > .env <<EOF
-COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME}
+                    # Ecriture des variables fixes (non interpretees par Groovy via 'EOF')
+                    cat > .env <<'EOF'
+COMPOSE_PROJECT_NAME=dockeropt
 DOCKEROPT_NETWORK_NAME=dockeropt-network
 DOCKEROPT_NETWORK_SUBNET=172.20.0.0/16
 
@@ -103,38 +104,24 @@ PROMETHEUS_EVALUATION_INTERVAL=15s
 PROMETHEUS_SCRAPE_TIMEOUT=10s
 PROMETHEUS_DATA_VOLUME=prometheus-data
 
-# DATABASE CONFIG (Interne via Docker network & Externe via 192.168.1.201:5435)
-DB_HOST=postgres
-DB_PORT=5432
-DB_NAME=dockeropt
-DB_USER=${POSTGRES_USER}
-DB_PASSWORD=${POSTGRES_PASSWORD}
-DB_POOL_MAX=10
-DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/dockeropt
-
-# DOCKEROPT BACKEND
+# BACKEND / FRONTEND DEFAULTS
 DOCKEROPT_BACKEND_BUILD=./dockeropt-platform/backend
-DOCKEROPT_BACKEND_IMAGE=dockeropt-backend:${DOCKER_TAG}
 DOCKEROPT_BACKEND_CONTAINER_NAME=dockeropt-backend
 BACKEND_HOST_PORT=5000
 DOCKEROPT_BACKEND_INTERNAL_PORT=5000
 PROMETHEUS_URL=http://prometheus:9090
 DOCKER_HOST=unix:///var/run/docker.sock
 
-# ADMIN / JWT
-ADMIN_EMAIL=${ADMIN_EMAIL}
-ADMIN_PASSWORD=${ADMIN_PASSWORD}
-JWT_SECRET=${JWT_SECRET}
-JWT_EXPIRES_IN=24h
+# DATABASE INTERNAL CONFIG
+DB_HOST=postgres
+DB_PORT=5432
+DB_NAME=dockeropt
+DB_POOL_MAX=10
 
-# SMTP
+# SMTP FIXED
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_SECURE=false
-SMTP_USER=${SMTP_USER}
-SMTP_PASSWORD=${SMTP_PASSWORD}
-SMTP_FROM=${SMTP_FROM}
-ALERT_EMAIL_TO=${ALERT_EMAIL_TO}
 ALERT_CHECK_INTERVAL_MS=15000
 
 # PLATFORM & FRONTEND
@@ -146,15 +133,29 @@ OPTIMIZATION_COOLDOWN_MS=180000
 SECURITY_SCAN_TIMEOUT_MS=165000
 
 DOCKEROPT_FRONTEND_BUILD=./dockeropt-platform/frontend
-DOCKEROPT_FRONTEND_IMAGE=dockeropt-frontend:${DOCKER_TAG}
 DOCKEROPT_FRONTEND_CONTAINER_NAME=dockeropt-frontend
 FRONTEND_HOST_PORT=3000
 FRONTEND_INTERNAL_PORT=80
 DOCKEROPT_FRONTEND_API_URL=http://192.168.1.201:5000
+JWT_EXPIRES_IN=24h
 EOF
 
+                    # Injection dynamique des credentials Jenkins et des tags
+                    echo "DB_USER=${POSTGRES_USER}" >> .env
+                    echo "DB_PASSWORD=${POSTGRES_PASSWORD}" >> .env
+                    echo "DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/dockeropt" >> .env
+                    echo "DOCKEROPT_BACKEND_IMAGE=dockeropt-backend:${DOCKER_TAG}" >> .env
+                    echo "DOCKEROPT_FRONTEND_IMAGE=dockeropt-frontend:${DOCKER_TAG}" >> .env
+                    echo "ADMIN_EMAIL=${ADMIN_EMAIL}" >> .env
+                    echo "ADMIN_PASSWORD=${ADMIN_PASSWORD}" >> .env
+                    echo "JWT_SECRET=${JWT_SECRET}" >> .env
+                    echo "SMTP_USER=${SMTP_USER}" >> .env
+                    echo "SMTP_PASSWORD=${SMTP_PASSWORD}" >> .env
+                    echo "SMTP_FROM=${SMTP_FROM}" >> .env
+                    echo "ALERT_EMAIL_TO=${ALERT_EMAIL_TO}" >> .env
+
                     chmod 600 .env
-                '''
+                """
             }
         }
 
