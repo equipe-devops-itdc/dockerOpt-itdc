@@ -1,6 +1,5 @@
 # ==========================================================
 # DOCKEROPT - DOCKER COMPOSE (PRODUCTION)
-# PostgreSQL EXTERNE
 # ==========================================================
 
 networks:
@@ -34,7 +33,7 @@ services:
     mem_limit: ${API_GATEWAY_MEM_LIMIT}
     cpus: "${API_GATEWAY_CPUS}"
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:${API_GATEWAY_PORT}/health"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:${API_GATEWAY_PORT}/health"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -53,7 +52,7 @@ services:
     mem_limit: ${USER_SERVICE_MEM_LIMIT}
     cpus: "${USER_SERVICE_CPUS}"
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:${USER_SERVICE_PORT}/health"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:${USER_SERVICE_PORT}/health"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -72,7 +71,7 @@ services:
     mem_limit: ${PRODUCT_SERVICE_MEM_LIMIT}
     cpus: "${PRODUCT_SERVICE_CPUS}"
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:${PRODUCT_SERVICE_PORT}/health"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:${PRODUCT_SERVICE_PORT}/health"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -91,7 +90,7 @@ services:
     mem_limit: ${NOTIFICATION_SERVICE_MEM_LIMIT}
     cpus: "${NOTIFICATION_SERVICE_CPUS}"
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:${NOTIFICATION_SERVICE_PORT}/health"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:${NOTIFICATION_SERVICE_PORT}/health"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -162,6 +161,8 @@ services:
     build: ${DOCKEROPT_BACKEND_BUILD}
     image: ${DOCKEROPT_BACKEND_IMAGE}
     container_name: ${DOCKEROPT_BACKEND_CONTAINER_NAME}
+    ports:
+      - "${BACKEND_HOST_PORT}:${DOCKEROPT_BACKEND_INTERNAL_PORT}"
     expose:
       - "${DOCKEROPT_BACKEND_INTERNAL_PORT}"
     environment:
