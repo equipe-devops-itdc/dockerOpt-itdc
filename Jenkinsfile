@@ -6,8 +6,6 @@ pipeline {
         DOCKER_TAG = "${BUILD_NUMBER}"
 
         // Credentials Jenkins
-        POSTGRES_HOST = credentials('POSTGRES_HOST_ID')
-        POSTGRES_PORT = credentials('POSTGRES_PORT_ID')
         POSTGRES_USER = credentials('POSTGRES_USER_ID')
         POSTGRES_PASSWORD = credentials('POSTGRES_PASSWORD_ID')
 
@@ -29,6 +27,16 @@ pipeline {
             }
         }
 
+        stage('Free Port 5435') {
+            steps {
+                // Arrêt de l'instance PostgreSQL native si elle tourne sur l'hôte pour libérer le port 5435
+                sh '''
+                    sudo systemctl stop postgresql-17 || true
+                    sudo systemctl disable postgresql-17 || true
+                '''
+            }
+        }
+
         stage('Generate Environment File') {
             steps {
                 sh '''
@@ -39,6 +47,12 @@ pipeline {
 COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME}
 DOCKEROPT_NETWORK_NAME=dockeropt-network
 DOCKEROPT_NETWORK_SUBNET=172.20.0.0/16
+
+# POSTGRES DOCKER
+POSTGRES_IMAGE=postgres:16-alpine
+POSTGRES_CONTAINER_NAME=dockeropt-postgres
+POSTGRES_HOST_PORT=5435
+POSTGRES_DATA_VOLUME=dockeropt-postgres-data
 
 # API GATEWAY
 API_GATEWAY_IMAGE=./services/api-gateway
@@ -89,20 +103,14 @@ PROMETHEUS_EVALUATION_INTERVAL=15s
 PROMETHEUS_SCRAPE_TIMEOUT=10s
 PROMETHEUS_DATA_VOLUME=prometheus-data
 
-# POSTGRESQL EXTERNE
-POSTGRES_HOST=${POSTGRES_HOST}
-POSTGRES_PORT=${POSTGRES_PORT}
-POSTGRES_USER=${POSTGRES_USER}
-POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-
-# DATABASE CONFIG
-DB_HOST=${POSTGRES_HOST}
-DB_PORT=${POSTGRES_PORT}
+# DATABASE CONFIG (Interne via Docker network & Externe via 192.168.1.201:5435)
+DB_HOST=postgres
+DB_PORT=5432
 DB_NAME=dockeropt
 DB_USER=${POSTGRES_USER}
 DB_PASSWORD=${POSTGRES_PASSWORD}
 DB_POOL_MAX=10
-DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/dockeropt
+DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/dockeropt
 
 # DOCKEROPT BACKEND
 DOCKEROPT_BACKEND_BUILD=./dockeropt-platform/backend
