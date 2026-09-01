@@ -5,7 +5,7 @@ pipeline {
         COMPOSE_PROJECT_NAME = 'dockeropt'
         DOCKER_TAG = "${BUILD_NUMBER}"
 
-        // Jenkins Credentials IDs
+        // Credentials Jenkins
         POSTGRES_HOST = credentials('POSTGRES_HOST_ID')
         POSTGRES_PORT = credentials('POSTGRES_PORT_ID')
         POSTGRES_USER = credentials('POSTGRES_USER_ID')
@@ -22,13 +22,10 @@ pipeline {
     }
 
     stages {
-        stage('Checkout & Update') {
+        stage('Checkout') {
             steps {
-                sh '''
-                    set -e
-                    git fetch origin main
-                    git reset --hard origin/main
-                '''
+                cleanWs()
+                checkout scm
             }
         }
 
@@ -142,16 +139,11 @@ EOF
             }
         }
 
-        stage('Build Containers') {
-            steps {
-                sh 'docker compose --env-file .env build'
-            }
-        }
-
-        stage('Deploy Production') {
+        stage('Build & Deploy') {
             steps {
                 sh '''
                     set -e
+                    docker compose --env-file .env build
                     docker compose --env-file .env down --remove-orphans || true
                     docker compose --env-file .env up -d
                     docker image prune -f
@@ -163,12 +155,6 @@ EOF
     post {
         always {
             sh 'rm -f .env'
-        }
-        success {
-            echo "Déploiement réussi !"
-        }
-        failure {
-            echo "Échec du déploiement."
         }
     }
 }
