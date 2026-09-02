@@ -11,7 +11,6 @@ volumes:
     name: ${PROMETHEUS_DATA_VOLUME}
 
 services:
-  # --- Frontend & Backend (Builds locaux) ---
   frontend:
     build:
       context: ${DOCKEROPT_FRONTEND_BUILD}
@@ -68,7 +67,6 @@ services:
     networks:
       - dockeropt-network
 
-  # --- Microservices ---
   api-gateway:
     image: ${API_GATEWAY_IMAGE}
     container_name: ${API_GATEWAY_CONTAINER_NAME}
@@ -141,7 +139,6 @@ services:
     networks:
       - dockeropt-network
 
-  # --- Supervision & Monitoring ---
   cadvisor:
     image: ${CADVISOR_IMAGE}
     container_name: ${CADVISOR_CONTAINER_NAME}

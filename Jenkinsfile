@@ -17,19 +17,19 @@ def createEnvFile() {
             echo "Génération du fichier .env temporaire..."
 
             cat <<EOF > .env
-# --- Base de données ---
+# --- Base de données (externe/managée) ---
 POSTGRES_HOST=${CRED_POSTGRES_HOST}
 POSTGRES_PORT=${CRED_POSTGRES_PORT}
 POSTGRES_USER=${CRED_POSTGRES_USER}
 POSTGRES_PASSWORD=${CRED_POSTGRES_PASSWORD}
 POSTGRES_DB=dockeropt
 
-DB_HOST=postgres
-DB_PORT=5432
+DB_HOST=${CRED_POSTGRES_HOST}
+DB_PORT=${CRED_POSTGRES_PORT}
 DB_NAME=dockeropt
 DB_USER=${CRED_POSTGRES_USER}
 DB_PASSWORD=${CRED_POSTGRES_PASSWORD}
-DATABASE_URL=postgres://${CRED_POSTGRES_USER}:${CRED_POSTGRES_PASSWORD}@postgres:5432/dockeropt
+DATABASE_URL=postgres://${CRED_POSTGRES_USER}:${CRED_POSTGRES_PASSWORD}@${CRED_POSTGRES_HOST}:${CRED_POSTGRES_PORT}/dockeropt
 DB_POOL_MAX=10
 
 # --- Admin & Sécurité ---
@@ -119,10 +119,6 @@ pipeline {
     environment {
         COMPOSE_PROJECT_NAME = 'dockeropt'
         DEPLOY_DIR = '/opt/dockeropt'
-        // Désactive le mode "bake" de docker compose (build parallèle via buildx bake).
-        // Ce mode peut masquer/mal résoudre les chemins relatifs de contexte de build
-        // quand plusieurs services sont construits en même temps ; on repasse en
-        // build séquentiel classique, plus lent mais avec des erreurs plus lisibles.
         COMPOSE_BAKE = 'false'
     }
 
@@ -141,11 +137,6 @@ pipeline {
             }
         }
 
-        // --- NOUVELLE ETAPE ---
-        // Vérifie AVANT de builder que les Dockerfile attendus existent bien
-        // aux chemins déclarés dans le .env (DOCKEROPT_FRONTEND_BUILD / DOCKEROPT_BACKEND_BUILD).
-        // Échoue avec un message clair + un état complet du workspace si un fichier manque,
-        // au lieu de laisser Docker Compose échouer avec une erreur peu explicite.
         stage('Verify Build Context') {
             steps {
                 sh '''
