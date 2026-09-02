@@ -2,107 +2,213 @@ pipeline {
     agent any
 
     environment {
-        // --- SECRETS JENKINS ---
-        DB_HOST                     = credentials('POSTGRES_HOST_ID')
-        DB_PORT                     = credentials('POSTGRES_PORT_ID')
-        DB_USER                     = credentials('POSTGRES_USER_ID')
-        DB_PASSWORD                 = credentials('POSTGRES_PASSWORD_ID')
-        
-        ADMIN_EMAIL                 = credentials('DOCKEROPT_ADMIN_EMAIL_ID')
-        ADMIN_PASSWORD              = credentials('DOCKEROPT_ADMIN_PASSWORD_ID')
-        JWT_SECRET                  = credentials('DOCKEROPT_JWT_SECRET_ID')
-        
-        SMTP_USER                   = credentials('DOCKEROPT_SMTP_USER_ID')
-        SMTP_PASSWORD               = credentials('DOCKEROPT_SMTP_PASSWORD_ID')
-        SMTP_FROM                   = credentials('DOCKEROPT_SMTP_FROM_ID')
-        ALERT_EMAIL_TO              = credentials('DOCKEROPT_ALERT_EMAIL_ID')
-
-        // --- CONFIGURATION GLOBAL & RESEAU ---
-        DOCKEROPT_NETWORK_NAME      = 'dockeropt-network'
-        DOCKEROPT_NETWORK_SUBNET    = '172.28.0.0/16'
-        PROMETHEUS_DATA_VOLUME      = 'prometheus-data'
-        DB_NAME                     = 'dockeropt'
-        DB_POOL_MAX                 = '10'
-
-        // --- PORTS ---
-        API_GATEWAY_PORT            = '5001'
-        USER_SERVICE_PORT           = '5002'
-        PRODUCT_SERVICE_PORT        = '5003'
-        NOTIFICATION_SERVICE_PORT   = '5004'
-        NODE_EXPORTER_PORT          = '9100'
-        CADVISOR_HOST_PORT          = '8081'
-        PROMETHEUS_PORT             = '9090'
-        BACKEND_HOST_PORT           = '5000'
-        FRONTEND_HOST_PORT          = '80'
-        SMTP_PORT                   = '587'
-        SMTP_SECURE                 = 'false'
-        SMTP_HOST                   = 'smtp.gmail.com'
-
-        // --- NAMES & IMAGES ---
-        API_GATEWAY_CONTAINER_NAME          = 'api-gateway'
-        USER_SERVICE_CONTAINER_NAME         = 'user-service'
-        PRODUCT_SERVICE_CONTAINER_NAME      = 'product-service'
-        NOTIFICATION_SERVICE_CONTAINER_NAME = 'notification-service'
-        NODE_EXPORTER_CONTAINER_NAME        = 'node-exporter'
-        CADVISOR_CONTAINER_NAME             = 'cadvisor'
-        PROMETHEUS_CONTAINER_NAME           = 'prometheus'
-        DOCKEROPT_BACKEND_CONTAINER_NAME    = 'dockeropt-backend'
-        DOCKEROPT_FRONTEND_CONTAINER_NAME   = 'dockeropt-frontend'
-
-        NODE_EXPORTER_IMAGE         = 'prom/node-exporter:latest'
-        CADVISOR_IMAGE              = 'gcr.io/cadvisor/cadvisor:latest'
-        PROMETHEUS_IMAGE            = 'prom/prometheus:latest'
-        DOCKEROPT_BACKEND_IMAGE     = "dockeropt-backend:${BUILD_NUMBER}"
-        DOCKEROPT_FRONTEND_IMAGE    = "dockeropt-frontend:${BUILD_NUMBER}"
-
-        // --- CONTEXTES DE BUILD (CHEMINS) ---
-        API_GATEWAY_IMAGE           = './api-gateway'
-        USER_SERVICE_IMAGE          = './user-service'
-        PRODUCT_SERVICE_IMAGE       = './product-service'
-        NOTIFICATION_SERVICE_IMAGE  = './notification-service'
-        DOCKEROPT_BACKEND_BUILD     = './backend'
-        DOCKEROPT_FRONTEND_BUILD    = './frontend'
-
-        // --- URLS DES SERVICES ---
-        API_GATEWAY_USER_SERVICE_URL         = 'http://user-service:5002'
-        API_GATEWAY_PRODUCT_SERVICE_URL      = 'http://product-service:5003'
-        API_GATEWAY_NOTIFICATION_SERVICE_URL = 'http://notification-service:5004'
-        PROMETHEUS_URL                       = 'http://prometheus:9090'
-        DOCKEROPT_FRONTEND_API_URL           = 'http://192.168.1.201:5000'
-
-        // --- LIMITES RESSOURCES & PROMETHEUS ---
-        API_GATEWAY_CPUS            = '0.5'
-        API_GATEWAY_MEM_LIMIT       = '512M'
-        USER_SERVICE_CPUS           = '0.5'
-        USER_SERVICE_MEM_LIMIT      = '512M'
-        PRODUCT_SERVICE_CPUS        = '0.5'
-        PRODUCT_SERVICE_MEM_LIMIT   = '512M'
-        NOTIFICATION_SERVICE_CPUS   = '0.5'
-        NOTIFICATION_SERVICE_MEM_LIMIT = '512M'
-        PROMETHEUS_RETENTION        = '15d'
+        COMPOSE_PROJECT_NAME = 'dockeropt'
+        DEPLOY_DIR = '/opt/dockeropt'
     }
 
     stages {
-        stage('Deploy with Docker Compose') {
+
+        // ==========================================================
+        // 1. CHECKOUT
+        // ==========================================================
+
+        stage('Checkout') {
             steps {
-                script {
-                    // Calcul dynamique du DATABASE_URL pour PostgreSQL distant
-                    def DATABASE_URL = "postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
-                    
-                    sh """
-                        export DATABASE_URL="${DATABASE_URL}"
-                        
-                        # Arrêt et re-déploiement du stack Docker
-                        docker compose down --remove-orphans || true
-                        docker compose up -d --build
-                    """
+                checkout scm
+            }
+        }
+
+
+        // ==========================================================
+        // 2. PREPARE ENVIRONMENT
+        // ==========================================================
+
+        stage('Prepare Environment') {
+            steps {
+
+                withCredentials([
+                    string(
+                        credentialsId: 'POSTGRES_HOST_ID',
+                        variable: 'CRED_POSTGRES_HOST'
+                    ),
+
+                    string(
+                        credentialsId: 'POSTGRES_PORT_ID',
+                        variable: 'CRED_POSTGRES_PORT'
+                    ),
+
+                    string(
+                        credentialsId: 'POSTGRES_USER_ID',
+                        variable: 'CRED_POSTGRES_USER'
+                    ),
+
+                    string(
+                        credentialsId: 'POSTGRES_PASSWORD_ID',
+                        variable: 'CRED_POSTGRES_PASSWORD'
+                    ),
+
+                    string(
+                        credentialsId: 'DOCKEROPT_ADMIN_EMAIL_ID',
+                        variable: 'CRED_ADMIN_EMAIL'
+                    ),
+
+                    string(
+                        credentialsId: 'DOCKEROPT_ADMIN_PASSWORD_ID',
+                        variable: 'CRED_ADMIN_PASSWORD'
+                    ),
+
+                    string(
+                        credentialsId: 'DOCKEROPT_JWT_SECRET_ID',
+                        variable: 'CRED_JWT_SECRET'
+                    ),
+
+                    string(
+                        credentialsId: 'DOCKEROPT_SMTP_USER_ID',
+                        variable: 'CRED_SMTP_USER'
+                    ),
+
+                    string(
+                        credentialsId: 'DOCKEROPT_SMTP_PASSWORD_ID',
+                        variable: 'CRED_SMTP_PASSWORD'
+                    ),
+
+                    string(
+                        credentialsId: 'DOCKEROPT_SMTP_FROM_ID',
+                        variable: 'CRED_SMTP_FROM'
+                    ),
+
+                    string(
+                        credentialsId: 'DOCKEROPT_ALERT_EMAIL_ID',
+                        variable: 'CRED_ALERT_EMAIL'
+                    )
+                ]) {
+
+                    sh '''
+                        set +x
+
+                        cat > .env.jenkins <<EOF
+
+POSTGRES_HOST=${CRED_POSTGRES_HOST}
+POSTGRES_PORT=${CRED_POSTGRES_PORT}
+POSTGRES_USER=${CRED_POSTGRES_USER}
+POSTGRES_PASSWORD=${CRED_POSTGRES_PASSWORD}
+POSTGRES_DB=dockeropt
+
+DB_HOST=${CRED_POSTGRES_HOST}
+DB_PORT=${CRED_POSTGRES_PORT}
+DB_NAME=dockeropt
+DB_USER=${CRED_POSTGRES_USER}
+DB_PASSWORD=${CRED_POSTGRES_PASSWORD}
+
+ADMIN_EMAIL=${CRED_ADMIN_EMAIL}
+ADMIN_PASSWORD=${CRED_ADMIN_PASSWORD}
+
+JWT_SECRET=${CRED_JWT_SECRET}
+
+SMTP_USER=${CRED_SMTP_USER}
+SMTP_PASSWORD=${CRED_SMTP_PASSWORD}
+SMTP_FROM=${CRED_SMTP_FROM}
+
+ALERT_EMAIL_TO=${CRED_ALERT_EMAIL}
+
+EOF
+
+                        chmod 600 .env.jenkins
+                    '''
                 }
+            }
+        }
+
+
+        // ==========================================================
+        // 3. BUILD
+        // ==========================================================
+
+        stage('Build Docker Images') {
+            steps {
+                sh '''
+                    set -e
+
+                    docker compose \
+                        --env-file .env \
+                        --env-file .env.jenkins \
+                        build
+                '''
+            }
+        }
+
+
+        // ==========================================================
+        // 4. DEPLOY
+        // ==========================================================
+
+        stage('Deploy') {
+            steps {
+                sh '''
+                    set -e
+
+                    docker compose \
+                        --env-file .env \
+                        --env-file .env.jenkins \
+                        up -d --remove-orphans
+                '''
+            }
+        }
+
+
+        // ==========================================================
+        // 5. VERIFY
+        // ==========================================================
+
+        stage('Verify Containers') {
+            steps {
+                sh '''
+                    set -e
+
+                    echo "=========================================="
+                    echo "DOCKEROPT CONTAINERS"
+                    echo "=========================================="
+
+                    docker compose \
+                        --env-file .env \
+                        --env-file .env.jenkins \
+                        ps
+
+                    echo ""
+                    echo "=========================================="
+                    echo "DOCKER CONTAINERS"
+                    echo "=========================================="
+
+                    docker ps --format "table {{.Names}}\\t{{.Status}}\\t{{.Ports}}"
+                '''
             }
         }
     }
 
+
+    // ==========================================================
+    // POST
+    // ==========================================================
+
     post {
+
+        success {
+            echo '=========================================='
+            echo 'DockerOpt deployment SUCCESS'
+            echo '=========================================='
+        }
+
+        failure {
+            echo '=========================================='
+            echo 'DockerOpt deployment FAILED'
+            echo '=========================================='
+        }
+
         always {
+            sh '''
+                rm -f .env.jenkins || true
+            '''
+
             cleanWs()
         }
     }
