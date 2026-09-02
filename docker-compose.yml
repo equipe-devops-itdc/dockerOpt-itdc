@@ -11,7 +11,7 @@ volumes:
     name: ${PROMETHEUS_DATA_VOLUME}
 
 services:
- 
+
   frontend:
     build:
       context: ${DOCKEROPT_FRONTEND_BUILD}
@@ -60,7 +60,13 @@ services:
       - dockeropt-network
 
   # --- Microservices ---
+  # Chacun est maintenant construit depuis son propre Dockerfile (comme
+  # frontend/backend), au lieu de reposer sur l'image node:18-alpine brute
+  # sans code ni commande, qui provoquait un redémarrage en boucle (exit 0).
   api-gateway:
+    build:
+      context: ${DOCKEROPT_API_GATEWAY_BUILD}
+      dockerfile: Dockerfile
     image: ${API_GATEWAY_IMAGE}
     container_name: ${API_GATEWAY_CONTAINER_NAME}
     restart: always
@@ -79,6 +85,9 @@ services:
       - dockeropt-network
 
   user-service:
+    build:
+      context: ${DOCKEROPT_USER_SERVICE_BUILD}
+      dockerfile: Dockerfile
     image: ${USER_SERVICE_IMAGE}
     container_name: ${USER_SERVICE_CONTAINER_NAME}
     restart: always
@@ -99,6 +108,9 @@ services:
       - dockeropt-network
 
   product-service:
+    build:
+      context: ${DOCKEROPT_PRODUCT_SERVICE_BUILD}
+      dockerfile: Dockerfile
     image: ${PRODUCT_SERVICE_IMAGE}
     container_name: ${PRODUCT_SERVICE_CONTAINER_NAME}
     restart: always
@@ -119,6 +131,9 @@ services:
       - dockeropt-network
 
   notification-service:
+    build:
+      context: ${DOCKEROPT_NOTIFICATION_SERVICE_BUILD}
+      dockerfile: Dockerfile
     image: ${NOTIFICATION_SERVICE_IMAGE}
     container_name: ${NOTIFICATION_SERVICE_CONTAINER_NAME}
     restart: always
