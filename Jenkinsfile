@@ -17,22 +17,19 @@ def createEnvFile() {
             echo "Génération du fichier .env temporaire..."
 
             cat <<EOF > .env
-# --- Base de données (PostgreSQL natif externe, hors conteneurs) ---
+# --- Base de données ---
 POSTGRES_HOST=${CRED_POSTGRES_HOST}
 POSTGRES_PORT=${CRED_POSTGRES_PORT}
 POSTGRES_USER=${CRED_POSTGRES_USER}
 POSTGRES_PASSWORD=${CRED_POSTGRES_PASSWORD}
 POSTGRES_DB=dockeropt
 
-# IMPORTANT: DB_HOST/DB_PORT pointent vers le PostgreSQL natif du serveur
-# (adresse réelle + port 5435 fournis par les credentials Jenkins), et non
-# vers un service "postgres" conteneurisé qui n'existe pas dans ce compose.
-DB_HOST=${CRED_POSTGRES_HOST}
-DB_PORT=${CRED_POSTGRES_PORT}
+DB_HOST=postgres
+DB_PORT=5432
 DB_NAME=dockeropt
 DB_USER=${CRED_POSTGRES_USER}
 DB_PASSWORD=${CRED_POSTGRES_PASSWORD}
-DATABASE_URL=postgres://${CRED_POSTGRES_USER}:${CRED_POSTGRES_PASSWORD}@${CRED_POSTGRES_HOST}:${CRED_POSTGRES_PORT}/dockeropt
+DATABASE_URL=postgres://${CRED_POSTGRES_USER}:${CRED_POSTGRES_PASSWORD}@postgres:5432/dockeropt
 DB_POOL_MAX=10
 
 # --- Admin & Sécurité ---
@@ -68,11 +65,7 @@ DOCKEROPT_BACKEND_CONTAINER_NAME=dockeropt_backend
 BACKEND_HOST_PORT=5000
 
 # --- Microservices (Ports 5001 - 5004) ---
-# NOTE: ces 4 services sont maintenant construits depuis leur propre code
-# source (comme frontend/backend), au lieu d'utiliser l'image node:18-alpine
-# brute sans commande, qui provoquait une boucle de redémarrage (exit 0).
-DOCKEROPT_API_GATEWAY_BUILD=./dockeropt-platform/api-gateway
-API_GATEWAY_IMAGE=dockeropt-api-gateway:latest
+API_GATEWAY_IMAGE=node:18-alpine
 API_GATEWAY_CONTAINER_NAME=dockeropt_api_gateway
 API_GATEWAY_PORT=5001
 API_GATEWAY_USER_SERVICE_URL=http://user-service:5002
@@ -81,22 +74,19 @@ API_GATEWAY_NOTIFICATION_SERVICE_URL=http://notification-service:5004
 API_GATEWAY_CPUS=0.5
 API_GATEWAY_MEM_LIMIT=512m
 
-DOCKEROPT_USER_SERVICE_BUILD=./dockeropt-platform/user-service
-USER_SERVICE_IMAGE=dockeropt-user-service:latest
+USER_SERVICE_IMAGE=node:18-alpine
 USER_SERVICE_CONTAINER_NAME=dockeropt_user_service
 USER_SERVICE_PORT=5002
 USER_SERVICE_CPUS=0.5
 USER_SERVICE_MEM_LIMIT=512m
 
-DOCKEROPT_PRODUCT_SERVICE_BUILD=./dockeropt-platform/product-service
-PRODUCT_SERVICE_IMAGE=dockeropt-product-service:latest
+PRODUCT_SERVICE_IMAGE=node:18-alpine
 PRODUCT_SERVICE_CONTAINER_NAME=dockeropt_product_service
 PRODUCT_SERVICE_PORT=5003
 PRODUCT_SERVICE_CPUS=0.5
 PRODUCT_SERVICE_MEM_LIMIT=512m
 
-DOCKEROPT_NOTIFICATION_SERVICE_BUILD=./dockeropt-platform/notification-service
-NOTIFICATION_SERVICE_IMAGE=dockeropt-notification-service:latest
+NOTIFICATION_SERVICE_IMAGE=node:18-alpine
 NOTIFICATION_SERVICE_CONTAINER_NAME=dockeropt_notification_service
 NOTIFICATION_SERVICE_PORT=5004
 NOTIFICATION_SERVICE_CPUS=0.5
@@ -151,11 +141,11 @@ pipeline {
             }
         }
 
+        // --- NOUVELLE ETAPE ---
         // Vérifie AVANT de builder que les Dockerfile attendus existent bien
-        // aux chemins déclarés dans le .env, pour TOUS les services applicatifs
-        // (frontend, backend, et les 4 microservices). Échoue avec un message
-        // clair + un état complet du workspace si un fichier manque, au lieu
-        // de laisser Docker Compose échouer avec une erreur peu explicite.
+        // aux chemins déclarés dans le .env (DOCKEROPT_FRONTEND_BUILD / DOCKEROPT_BACKEND_BUILD).
+        // Échoue avec un message clair + un état complet du workspace si un fichier manque,
+        // au lieu de laisser Docker Compose échouer avec une erreur peu explicite.
         stage('Verify Build Context') {
             steps {
                 sh '''
@@ -164,34 +154,33 @@ pipeline {
                     echo "VERIFICATION DES CONTEXTES DE BUILD"
                     echo "=========================================="
 
+                    . ./.env 2>/dev/null || true
                     export $(grep -v '^#' .env | xargs -d '\\n')
 
-                    echo "--- Arborescence du workspace (3 niveaux) ---"
+                    echo "--- Arborescence du workspace (2 niveaux) ---"
                     find . -maxdepth 3 -type d -not -path "*/.git*" -not -path "*/node_modules*"
 
                     echo ""
                     echo "--- Recherche de tous les Dockerfile du repo ---"
                     find . -iname "Dockerfile*" -not -path "*/node_modules/*" -not -path "*/.git/*"
 
-                    for svc in \\
-                        "FRONTEND:${DOCKEROPT_FRONTEND_BUILD}" \\
-                        "BACKEND:${DOCKEROPT_BACKEND_BUILD}" \\
-                        "API_GATEWAY:${DOCKEROPT_API_GATEWAY_BUILD}" \\
-                        "USER_SERVICE:${DOCKEROPT_USER_SERVICE_BUILD}" \\
-                        "PRODUCT_SERVICE:${DOCKEROPT_PRODUCT_SERVICE_BUILD}" \\
-                        "NOTIFICATION_SERVICE:${DOCKEROPT_NOTIFICATION_SERVICE_BUILD}"
-                    do
-                        name="${svc%%:*}"
-                        path="${svc#*:}"
-                        echo ""
-                        echo "--- Contexte ${name} attendu: ${path} ---"
-                        if [ ! -f "${path}/Dockerfile" ]; then
-                            echo "ERREUR: Dockerfile introuvable dans ${path}"
-                            ls -la "${path}" 2>/dev/null || echo "Le dossier ${path} n'existe pas du tout."
-                            exit 1
-                        fi
-                        echo "OK: ${path}/Dockerfile trouvé."
-                    done
+                    echo ""
+                    echo "--- Contexte FRONTEND attendu: ${DOCKEROPT_FRONTEND_BUILD} ---"
+                    if [ ! -f "${DOCKEROPT_FRONTEND_BUILD}/Dockerfile" ]; then
+                        echo "ERREUR: Dockerfile introuvable dans ${DOCKEROPT_FRONTEND_BUILD}"
+                        ls -la "${DOCKEROPT_FRONTEND_BUILD}" 2>/dev/null || echo "Le dossier ${DOCKEROPT_FRONTEND_BUILD} n'existe pas du tout."
+                        exit 1
+                    fi
+                    echo "OK: ${DOCKEROPT_FRONTEND_BUILD}/Dockerfile trouvé."
+
+                    echo ""
+                    echo "--- Contexte BACKEND attendu: ${DOCKEROPT_BACKEND_BUILD} ---"
+                    if [ ! -f "${DOCKEROPT_BACKEND_BUILD}/Dockerfile" ]; then
+                        echo "ERREUR: Dockerfile introuvable dans ${DOCKEROPT_BACKEND_BUILD}"
+                        ls -la "${DOCKEROPT_BACKEND_BUILD}" 2>/dev/null || echo "Le dossier ${DOCKEROPT_BACKEND_BUILD} n'existe pas du tout."
+                        exit 1
+                    fi
+                    echo "OK: ${DOCKEROPT_BACKEND_BUILD}/Dockerfile trouvé."
                 '''
             }
         }
