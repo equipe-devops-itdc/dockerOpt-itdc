@@ -95,7 +95,7 @@ NOTIFICATION_SERVICE_MEM_LIMIT=512m
 # --- Monitoring ---
 CADVISOR_IMAGE=gcr.io/cadvisor/cadvisor:latest
 CADVISOR_CONTAINER_NAME=dockeropt_cadvisor
-CADVISOR_HOST_PORT=8081
+CADVISOR_HOST_PORT=8083
 
 PROMETHEUS_IMAGE=prom/prometheus:latest
 PROMETHEUS_CONTAINER_NAME=dockeropt_prometheus
