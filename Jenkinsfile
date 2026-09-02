@@ -278,6 +278,10 @@ DockerOpt deployment SUCCESS
 DockerOpt deployment FAILED
 ==========================================
 '''
+            sh '''
+                echo "--- AFFICHAGE DES LOGS DU BACKEND POUR DIAGNOSTIC ---"
+                docker logs dockeropt_backend --tail 50 || true
+            '''
         }
 
         always {
