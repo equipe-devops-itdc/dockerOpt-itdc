@@ -15,6 +15,7 @@ services:
   frontend:
     build:
       context: ${DOCKEROPT_FRONTEND_BUILD}
+      dockerfile: Dockerfile
     image: ${DOCKEROPT_FRONTEND_IMAGE}
     container_name: ${DOCKEROPT_FRONTEND_CONTAINER_NAME}
     restart: always
@@ -28,6 +29,7 @@ services:
   backend:
     build:
       context: ${DOCKEROPT_BACKEND_BUILD}
+      dockerfile: Dockerfile
     image: ${DOCKEROPT_BACKEND_IMAGE}
     container_name: ${DOCKEROPT_BACKEND_CONTAINER_NAME}
     restart: always

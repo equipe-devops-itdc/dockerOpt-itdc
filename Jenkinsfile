@@ -52,7 +52,7 @@ DOCKEROPT_NETWORK_NAME=dockeropt_net
 DOCKEROPT_NETWORK_SUBNET=172.28.0.0/16
 PROMETHEUS_DATA_VOLUME=prometheus_data
 
-# --- Frontend & Backend (Chemins ajustés vers dockeropt-platform) ---
+# --- Frontend & Backend (Contextes de build dans dockeropt-platform) ---
 DOCKEROPT_FRONTEND_BUILD=./dockeropt-platform/frontend
 DOCKEROPT_FRONTEND_IMAGE=dockeropt-frontend:latest
 DOCKEROPT_FRONTEND_CONTAINER_NAME=dockeropt_frontend
@@ -64,7 +64,7 @@ DOCKEROPT_BACKEND_IMAGE=dockeropt-backend:latest
 DOCKEROPT_BACKEND_CONTAINER_NAME=dockeropt_backend
 BACKEND_HOST_PORT=5000
 
-# --- Microservices (Port 5001 à 5004) ---
+# --- Microservices (Ports 5001 - 5004) ---
 API_GATEWAY_IMAGE=node:18-alpine
 API_GATEWAY_CONTAINER_NAME=dockeropt_api_gateway
 API_GATEWAY_PORT=5001
@@ -136,6 +136,18 @@ pipeline {
             }
         }
 
+        stage('Clean Docker Build Cache') {
+            steps {
+                sh '''
+                    set -e
+                    echo "=========================================="
+                    echo "NETTOYAGE DU CACHE DOCKER BUILD"
+                    echo "=========================================="
+                    docker builder prune -af || true
+                '''
+            }
+        }
+
         stage('Validate Docker Compose') {
             steps {
                 script {
@@ -161,10 +173,10 @@ pipeline {
                 sh '''
                     set -e
                     echo "=========================================="
-                    echo "BUILD DES IMAGES DOCKER"
+                    echo "BUILD DES IMAGES DOCKER (SANS CACHE)"
                     echo "=========================================="
 
-                    docker compose --env-file .env build
+                    docker compose --env-file .env build --no-cache
                     echo "Build terminé avec succès."
                 '''
             }
