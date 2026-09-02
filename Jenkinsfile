@@ -8,20 +8,11 @@ pipeline {
 
     stages {
 
-        // ==========================================================
-        // 1. CHECKOUT
-        // ==========================================================
-
         stage('Checkout') {
             steps {
                 checkout scm
             }
         }
-
-
-        // ==========================================================
-        // 2. PREPARE ENVIRONMENT
-        // ==========================================================
 
         stage('Prepare Environment') {
             steps {
@@ -86,16 +77,17 @@ pipeline {
                     sh '''
                         set +x
 
-                        cat > .env.jenkins <<EOF
+                        echo "Création du fichier .env temporaire..."
 
+                        cat > .env <<EOF
 POSTGRES_HOST=${CRED_POSTGRES_HOST}
 POSTGRES_PORT=${CRED_POSTGRES_PORT}
 POSTGRES_USER=${CRED_POSTGRES_USER}
 POSTGRES_PASSWORD=${CRED_POSTGRES_PASSWORD}
 POSTGRES_DB=dockeropt
 
-DB_HOST=${CRED_POSTGRES_HOST}
-DB_PORT=${CRED_POSTGRES_PORT}
+DB_HOST=postgres
+DB_PORT=5432
 DB_NAME=dockeropt
 DB_USER=${CRED_POSTGRES_USER}
 DB_PASSWORD=${CRED_POSTGRES_PASSWORD}
@@ -104,7 +96,11 @@ ADMIN_EMAIL=${CRED_ADMIN_EMAIL}
 ADMIN_PASSWORD=${CRED_ADMIN_PASSWORD}
 
 JWT_SECRET=${CRED_JWT_SECRET}
+JWT_EXPIRES_IN=7d
 
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_SECURE=false
 SMTP_USER=${CRED_SMTP_USER}
 SMTP_PASSWORD=${CRED_SMTP_PASSWORD}
 SMTP_FROM=${CRED_SMTP_FROM}
@@ -113,52 +109,67 @@ ALERT_EMAIL_TO=${CRED_ALERT_EMAIL}
 
 EOF
 
-                        chmod 600 .env.jenkins
+                        chmod 600 .env
+
+                        echo "Fichier .env créé."
                     '''
                 }
             }
         }
 
+        stage('Validate Docker Compose') {
+            steps {
+                sh '''
+                    set -e
 
-        // ==========================================================
-        // 3. BUILD
-        // ==========================================================
+                    echo "=========================================="
+                    echo "VALIDATION DOCKER COMPOSE"
+                    echo "=========================================="
+
+                    docker compose \
+                        --env-file .env \
+                        config -q
+
+                    echo "Docker Compose configuration OK."
+                '''
+            }
+        }
 
         stage('Build Docker Images') {
             steps {
                 sh '''
                     set -e
 
+                    echo "=========================================="
+                    echo "BUILD DES IMAGES DOCKER"
+                    echo "=========================================="
+
                     docker compose \
                         --env-file .env \
-                        --env-file .env.jenkins \
                         build
+
+                    echo "Build terminé avec succès."
                 '''
             }
         }
-
-
-        // ==========================================================
-        // 4. DEPLOY
-        // ==========================================================
 
         stage('Deploy') {
             steps {
                 sh '''
                     set -e
 
+                    echo "=========================================="
+                    echo "DEPLOIEMENT DOCKEROPT"
+                    echo "=========================================="
+
                     docker compose \
                         --env-file .env \
-                        --env-file .env.jenkins \
                         up -d --remove-orphans
+
+                    echo "Déploiement terminé."
                 '''
             }
         }
-
-
-        // ==========================================================
-        // 5. VERIFY
-        // ==========================================================
 
         stage('Verify Containers') {
             steps {
@@ -166,47 +177,50 @@ EOF
                     set -e
 
                     echo "=========================================="
-                    echo "DOCKEROPT CONTAINERS"
+                    echo "ETAT DES SERVICES DOCKEROPT"
                     echo "=========================================="
 
                     docker compose \
                         --env-file .env \
-                        --env-file .env.jenkins \
                         ps
 
                     echo ""
                     echo "=========================================="
-                    echo "DOCKER CONTAINERS"
+                    echo "CONTENEURS DOCKER"
                     echo "=========================================="
 
-                    docker ps --format "table {{.Names}}\\t{{.Status}}\\t{{.Ports}}"
+                    docker ps \
+                        --format "table {{.Names}}\\t{{.Status}}\\t{{.Ports}}"
                 '''
             }
         }
     }
 
-
-    // ==========================================================
-    // POST
-    // ==========================================================
-
     post {
 
         success {
-            echo '=========================================='
-            echo 'DockerOpt deployment SUCCESS'
-            echo '=========================================='
+            echo '''
+==========================================
+DockerOpt deployment SUCCESS
+==========================================
+'''
         }
 
         failure {
-            echo '=========================================='
-            echo 'DockerOpt deployment FAILED'
-            echo '=========================================='
+            echo '''
+==========================================
+DockerOpt deployment FAILED
+==========================================
+'''
         }
 
         always {
             sh '''
-                rm -f .env.jenkins || true
+                echo "Nettoyage des secrets temporaires..."
+
+                rm -f .env || true
+
+                echo "Nettoyage terminé."
             '''
 
             cleanWs()
