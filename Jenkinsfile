@@ -16,70 +16,24 @@ pipeline {
 
         stage('Prepare Environment') {
             steps {
-
                 withCredentials([
-                    string(
-                        credentialsId: 'POSTGRES_HOST_ID',
-                        variable: 'CRED_POSTGRES_HOST'
-                    ),
-
-                    string(
-                        credentialsId: 'POSTGRES_PORT_ID',
-                        variable: 'CRED_POSTGRES_PORT'
-                    ),
-
-                    string(
-                        credentialsId: 'POSTGRES_USER_ID',
-                        variable: 'CRED_POSTGRES_USER'
-                    ),
-
-                    string(
-                        credentialsId: 'POSTGRES_PASSWORD_ID',
-                        variable: 'CRED_POSTGRES_PASSWORD'
-                    ),
-
-                    string(
-                        credentialsId: 'DOCKEROPT_ADMIN_EMAIL_ID',
-                        variable: 'CRED_ADMIN_EMAIL'
-                    ),
-
-                    string(
-                        credentialsId: 'DOCKEROPT_ADMIN_PASSWORD_ID',
-                        variable: 'CRED_ADMIN_PASSWORD'
-                    ),
-
-                    string(
-                        credentialsId: 'DOCKEROPT_JWT_SECRET_ID',
-                        variable: 'CRED_JWT_SECRET'
-                    ),
-
-                    string(
-                        credentialsId: 'DOCKEROPT_SMTP_USER_ID',
-                        variable: 'CRED_SMTP_USER'
-                    ),
-
-                    string(
-                        credentialsId: 'DOCKEROPT_SMTP_PASSWORD_ID',
-                        variable: 'CRED_SMTP_PASSWORD'
-                    ),
-
-                    string(
-                        credentialsId: 'DOCKEROPT_SMTP_FROM_ID',
-                        variable: 'CRED_SMTP_FROM'
-                    ),
-
-                    string(
-                        credentialsId: 'DOCKEROPT_ALERT_EMAIL_ID',
-                        variable: 'CRED_ALERT_EMAIL'
-                    )
+                    string(credentialsId: 'POSTGRES_HOST_ID', variable: 'CRED_POSTGRES_HOST'),
+                    string(credentialsId: 'POSTGRES_PORT_ID', variable: 'CRED_POSTGRES_PORT'),
+                    string(credentialsId: 'POSTGRES_USER_ID', variable: 'CRED_POSTGRES_USER'),
+                    string(credentialsId: 'POSTGRES_PASSWORD_ID', variable: 'CRED_POSTGRES_PASSWORD'),
+                    string(credentialsId: 'DOCKEROPT_ADMIN_EMAIL_ID', variable: 'CRED_ADMIN_EMAIL'),
+                    string(credentialsId: 'DOCKEROPT_ADMIN_PASSWORD_ID', variable: 'CRED_ADMIN_PASSWORD'),
+                    string(credentialsId: 'DOCKEROPT_JWT_SECRET_ID', variable: 'CRED_JWT_SECRET'),
+                    string(credentialsId: 'DOCKEROPT_SMTP_USER_ID', variable: 'CRED_SMTP_USER'),
+                    string(credentialsId: 'DOCKEROPT_SMTP_PASSWORD_ID', variable: 'CRED_SMTP_PASSWORD'),
+                    string(credentialsId: 'DOCKEROPT_SMTP_FROM_ID', variable: 'CRED_SMTP_FROM'),
+                    string(credentialsId: 'DOCKEROPT_ALERT_EMAIL_ID', variable: 'CRED_ALERT_EMAIL')
                 ]) {
-
                     sh '''
                         set +x
-
                         echo "Création du fichier .env temporaire..."
 
-                        cat > .env <<EOF
+                        cat <<EOF > .env
 POSTGRES_HOST=${CRED_POSTGRES_HOST}
 POSTGRES_PORT=${CRED_POSTGRES_PORT}
 POSTGRES_USER=${CRED_POSTGRES_USER}
@@ -106,12 +60,10 @@ SMTP_PASSWORD=${CRED_SMTP_PASSWORD}
 SMTP_FROM=${CRED_SMTP_FROM}
 
 ALERT_EMAIL_TO=${CRED_ALERT_EMAIL}
-
 EOF
 
                         chmod 600 .env
-
-                        echo "Fichier .env créé."
+                        echo "Fichier .env créé avec succès."
                     '''
                 }
             }
@@ -121,15 +73,11 @@ EOF
             steps {
                 sh '''
                     set -e
-
                     echo "=========================================="
                     echo "VALIDATION DOCKER COMPOSE"
                     echo "=========================================="
 
-                    docker compose \
-                        --env-file .env \
-                        config -q
-
+                    docker compose --env-file .env config -q
                     echo "Docker Compose configuration OK."
                 '''
             }
@@ -139,15 +87,11 @@ EOF
             steps {
                 sh '''
                     set -e
-
                     echo "=========================================="
                     echo "BUILD DES IMAGES DOCKER"
                     echo "=========================================="
 
-                    docker compose \
-                        --env-file .env \
-                        build
-
+                    docker compose --env-file .env build
                     echo "Build terminé avec succès."
                 '''
             }
@@ -157,15 +101,11 @@ EOF
             steps {
                 sh '''
                     set -e
-
                     echo "=========================================="
                     echo "DEPLOIEMENT DOCKEROPT"
                     echo "=========================================="
 
-                    docker compose \
-                        --env-file .env \
-                        up -d --remove-orphans
-
+                    docker compose --env-file .env up -d --remove-orphans
                     echo "Déploiement terminé."
                 '''
             }
@@ -175,29 +115,24 @@ EOF
             steps {
                 sh '''
                     set -e
-
                     echo "=========================================="
                     echo "ETAT DES SERVICES DOCKEROPT"
                     echo "=========================================="
 
-                    docker compose \
-                        --env-file .env \
-                        ps
+                    docker compose --env-file .env ps
 
                     echo ""
                     echo "=========================================="
                     echo "CONTENEURS DOCKER"
                     echo "=========================================="
 
-                    docker ps \
-                        --format "table {{.Names}}\\t{{.Status}}\\t{{.Ports}}"
+                    docker ps --format "table {{.Names}}\\t{{.Status}}\\t{{.Ports}}"
                 '''
             }
         }
     }
 
     post {
-
         success {
             echo '''
 ==========================================
@@ -217,12 +152,9 @@ DockerOpt deployment FAILED
         always {
             sh '''
                 echo "Nettoyage des secrets temporaires..."
-
-                rm -f .env || true
-
+                rm -f .env .env.jenkins || true
                 echo "Nettoyage terminé."
             '''
-
             cleanWs()
         }
     }
