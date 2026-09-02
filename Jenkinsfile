@@ -17,7 +17,6 @@ def createEnvFile() {
             echo "Génération du fichier .env temporaire..."
 
             cat <<EOF > .env
-# --- Base de données (externe/managée) ---
 POSTGRES_HOST=${CRED_POSTGRES_HOST}
 POSTGRES_PORT=${CRED_POSTGRES_PORT}
 POSTGRES_USER=${CRED_POSTGRES_USER}
@@ -32,13 +31,11 @@ DB_PASSWORD=${CRED_POSTGRES_PASSWORD}
 DATABASE_URL=postgres://${CRED_POSTGRES_USER}:${CRED_POSTGRES_PASSWORD}@${CRED_POSTGRES_HOST}:${CRED_POSTGRES_PORT}/dockeropt
 DB_POOL_MAX=10
 
-# --- Admin & Sécurité ---
 ADMIN_EMAIL=${CRED_ADMIN_EMAIL}
 ADMIN_PASSWORD=${CRED_ADMIN_PASSWORD}
 JWT_SECRET=${CRED_JWT_SECRET}
 JWT_EXPIRES_IN=7d
 
-# --- Configuration SMTP ---
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_SECURE=false
@@ -47,12 +44,10 @@ SMTP_PASSWORD=${CRED_SMTP_PASSWORD}
 SMTP_FROM=${CRED_SMTP_FROM}
 ALERT_EMAIL_TO=${CRED_ALERT_EMAIL}
 
-# --- Réseau & Volumes ---
 DOCKEROPT_NETWORK_NAME=dockeropt_net
 DOCKEROPT_NETWORK_SUBNET=172.28.0.0/16
 PROMETHEUS_DATA_VOLUME=prometheus_data
 
-# --- Frontend & Backend (Contextes de build dans dockeropt-platform) ---
 DOCKEROPT_FRONTEND_BUILD=./dockeropt-platform/frontend
 DOCKEROPT_FRONTEND_IMAGE=dockeropt-frontend:latest
 DOCKEROPT_FRONTEND_CONTAINER_NAME=dockeropt_frontend
@@ -64,7 +59,6 @@ DOCKEROPT_BACKEND_IMAGE=dockeropt-backend:latest
 DOCKEROPT_BACKEND_CONTAINER_NAME=dockeropt_backend
 BACKEND_HOST_PORT=5000
 
-# --- Microservices (Ports 5001 - 5004) ---
 API_GATEWAY_IMAGE=node:18-alpine
 API_GATEWAY_CONTAINER_NAME=dockeropt_api_gateway
 API_GATEWAY_PORT=5001
@@ -92,7 +86,6 @@ NOTIFICATION_SERVICE_PORT=5004
 NOTIFICATION_SERVICE_CPUS=0.5
 NOTIFICATION_SERVICE_MEM_LIMIT=512m
 
-# --- Monitoring ---
 CADVISOR_IMAGE=gcr.io/cadvisor/cadvisor:latest
 CADVISOR_CONTAINER_NAME=dockeropt_cadvisor
 CADVISOR_HOST_PORT=8083
@@ -108,7 +101,7 @@ NODE_EXPORTER_CONTAINER_NAME=dockeropt_node_exporter
 NODE_EXPORTER_PORT=9100
 EOF
             chmod 600 .env
-            echo "Fichier .env temporaire prêt."
+            echo "Fichier .env généré avec succès."
         '''
     }
 }
@@ -118,145 +111,64 @@ pipeline {
 
     environment {
         COMPOSE_PROJECT_NAME = 'dockeropt'
-        DEPLOY_DIR = '/opt/dockeropt'
-        COMPOSE_BAKE = 'false'
+        DOCKER_BUILDKIT = '1'
+        COMPOSE_DOCKER_CLI_BUILD = '1'
     }
 
     stages {
-        stage('Checkout') {
+        // --- PHASE 1 : CHECKOUT ---
+        stage('Phase 1 : Checkout') {
             steps {
+                echo "Récupération du code source..."
                 checkout scm
             }
         }
 
-        stage('Prepare Environment') {
+        // --- PHASE 2 : ENVIRONMENT SETUP ---
+        stage('Phase 2 : Environment Setup') {
             steps {
+                echo "Création du fichier d'environnement .env..."
                 script {
                     createEnvFile()
                 }
             }
         }
 
-        stage('Verify Build Context') {
+        // --- PHASE 3 : VALIDATE CONFIG ---
+        stage('Phase 3 : Validate Docker Config') {
             steps {
-                sh '''
-                    set -e
-                    echo "=========================================="
-                    echo "VERIFICATION DES CONTEXTES DE BUILD"
-                    echo "=========================================="
-
-                    . ./.env 2>/dev/null || true
-                    export $(grep -v '^#' .env | xargs -d '\\n')
-
-                    echo "--- Arborescence du workspace (2 niveaux) ---"
-                    find . -maxdepth 3 -type d -not -path "*/.git*" -not -path "*/node_modules*"
-
-                    echo ""
-                    echo "--- Recherche de tous les Dockerfile du repo ---"
-                    find . -iname "Dockerfile*" -not -path "*/node_modules/*" -not -path "*/.git/*"
-
-                    echo ""
-                    echo "--- Contexte FRONTEND attendu: ${DOCKEROPT_FRONTEND_BUILD} ---"
-                    if [ ! -f "${DOCKEROPT_FRONTEND_BUILD}/Dockerfile" ]; then
-                        echo "ERREUR: Dockerfile introuvable dans ${DOCKEROPT_FRONTEND_BUILD}"
-                        ls -la "${DOCKEROPT_FRONTEND_BUILD}" 2>/dev/null || echo "Le dossier ${DOCKEROPT_FRONTEND_BUILD} n'existe pas du tout."
-                        exit 1
-                    fi
-                    echo "OK: ${DOCKEROPT_FRONTEND_BUILD}/Dockerfile trouvé."
-
-                    echo ""
-                    echo "--- Contexte BACKEND attendu: ${DOCKEROPT_BACKEND_BUILD} ---"
-                    if [ ! -f "${DOCKEROPT_BACKEND_BUILD}/Dockerfile" ]; then
-                        echo "ERREUR: Dockerfile introuvable dans ${DOCKEROPT_BACKEND_BUILD}"
-                        ls -la "${DOCKEROPT_BACKEND_BUILD}" 2>/dev/null || echo "Le dossier ${DOCKEROPT_BACKEND_BUILD} n'existe pas du tout."
-                        exit 1
-                    fi
-                    echo "OK: ${DOCKEROPT_BACKEND_BUILD}/Dockerfile trouvé."
-                '''
+                echo "Validation de la configuration Docker Compose..."
+                sh 'docker compose --env-file .env config -q'
             }
         }
 
-        stage('Clean Docker Build Cache') {
+        // --- PHASE 4 : PARALLEL BUILD ---
+        stage('Phase 4 : Fast Build') {
             steps {
-                sh '''
-                    set -e
-                    echo "=========================================="
-                    echo "NETTOYAGE DU CACHE DOCKER BUILD"
-                    echo "=========================================="
-                    docker builder prune -af || true
-                '''
+                echo "Build rapide des images Docker (mode parallèle et utilisation du cache)..."
+                sh 'docker compose --env-file .env build --parallel'
             }
         }
 
-        stage('Validate Docker Compose') {
+        // --- PHASE 5 : DEPLOYMENT ---
+        stage('Phase 5 : Deploy Services') {
             steps {
-                script {
-                    if (!fileExists('.env')) { createEnvFile() }
-                }
-                sh '''
-                    set -e
-                    echo "=========================================="
-                    echo "VALIDATION DOCKER COMPOSE"
-                    echo "=========================================="
-
-                    docker compose --env-file .env config -q
-                    echo "Docker Compose configuration OK."
-                '''
+                echo "Démarrage des conteneurs en arrière-plan..."
+                sh 'docker compose --env-file .env up -d --remove-orphans'
             }
         }
 
-        stage('Build Docker Images') {
+        // --- PHASE 6 : VERIFICATION ---
+        stage('Phase 6 : Verify Containers') {
             steps {
-                script {
-                    if (!fileExists('.env')) { createEnvFile() }
-                }
+                echo "Vérification de l'état des services..."
                 sh '''
                     set -e
-                    echo "=========================================="
-                    echo "BUILD DES IMAGES DOCKER (SANS CACHE)"
-                    echo "=========================================="
-
-                    docker compose --env-file .env build --no-cache
-                    echo "Build terminé avec succès."
-                '''
-            }
-        }
-
-        stage('Deploy') {
-            steps {
-                script {
-                    if (!fileExists('.env')) { createEnvFile() }
-                }
-                sh '''
-                    set -e
-                    echo "=========================================="
-                    echo "DEPLOIEMENT DOCKEROPT"
-                    echo "=========================================="
-
-                    docker compose --env-file .env up -d --remove-orphans
-                    echo "Déploiement terminé."
-                '''
-            }
-        }
-
-        stage('Verify Containers') {
-            steps {
-                script {
-                    if (!fileExists('.env')) { createEnvFile() }
-                }
-                sh '''
-                    set -e
-                    echo "=========================================="
-                    echo "ETAT DES SERVICES DOCKEROPT"
-                    echo "=========================================="
-
+                    echo "=== ETAT DES SERVICES ==="
                     docker compose --env-file .env ps
-
+                    
                     echo ""
-                    echo "=========================================="
-                    echo "CONTENEURS DOCKER"
-                    echo "=========================================="
-
+                    echo "=== CONTENEURS EN COURS D'EXECUTION ==="
                     docker ps --format "table {{.Names}}\\t{{.Status}}\\t{{.Ports}}"
                 '''
             }
@@ -267,7 +179,7 @@ pipeline {
         success {
             echo '''
 ==========================================
-DockerOpt deployment SUCCESS
+  DockerOpt Deployment: SUCCESS
 ==========================================
 '''
         }
@@ -275,22 +187,20 @@ DockerOpt deployment SUCCESS
         failure {
             echo '''
 ==========================================
-DockerOpt deployment FAILED
+  DockerOpt Deployment: FAILED
 ==========================================
 '''
             sh '''
-                echo "--- AFFICHAGE DES LOGS DU BACKEND POUR DIAGNOSTIC ---"
+                echo "--- DIAGNOSTIC DES LOGS EN CAS D'ERREUR ---"
                 docker logs dockeropt_backend --tail 50 || true
             '''
         }
 
         always {
             sh '''
-                echo "Nettoyage des secrets temporaires..."
+                echo "Nettoyage du fichier de secrets .env..."
                 rm -f .env .env.jenkins || true
-                echo "Nettoyage terminé."
             '''
-            cleanWs()
         }
     }
 }
