@@ -52,21 +52,21 @@ DOCKEROPT_NETWORK_NAME=dockeropt_net
 DOCKEROPT_NETWORK_SUBNET=172.28.0.0/16
 PROMETHEUS_DATA_VOLUME=prometheus_data
 
-# --- Frontend (Port 3000) ---
+# --- Frontend (Port 3000 - avec Dockerfile dans ./frontend) ---
 DOCKEROPT_FRONTEND_BUILD=./frontend
 DOCKEROPT_FRONTEND_IMAGE=dockeropt-frontend:latest
 DOCKEROPT_FRONTEND_CONTAINER_NAME=dockeropt_frontend
 FRONTEND_HOST_PORT=3000
 DOCKEROPT_FRONTEND_API_URL=http://localhost:5000
 
-# --- Microservices (Plage 5000 - 5004) ---
+# --- Backend (Port 5000 - avec Dockerfile dans ./backend) ---
 DOCKEROPT_BACKEND_BUILD=./backend
 DOCKEROPT_BACKEND_IMAGE=dockeropt-backend:latest
 DOCKEROPT_BACKEND_CONTAINER_NAME=dockeropt_backend
 BACKEND_HOST_PORT=5000
 
-API_GATEWAY_BUILD=./api-gateway
-API_GATEWAY_IMAGE=dockeropt-api-gateway:latest
+# --- Microservices (Images pré-construites / Runtimes) ---
+API_GATEWAY_IMAGE=node:18-alpine
 API_GATEWAY_CONTAINER_NAME=dockeropt_api_gateway
 API_GATEWAY_PORT=5001
 API_GATEWAY_USER_SERVICE_URL=http://user-service:5002
@@ -75,22 +75,19 @@ API_GATEWAY_NOTIFICATION_SERVICE_URL=http://notification-service:5004
 API_GATEWAY_CPUS=0.5
 API_GATEWAY_MEM_LIMIT=512m
 
-USER_SERVICE_BUILD=./user-service
-USER_SERVICE_IMAGE=dockeropt-user-service:latest
+USER_SERVICE_IMAGE=node:18-alpine
 USER_SERVICE_CONTAINER_NAME=dockeropt_user_service
 USER_SERVICE_PORT=5002
 USER_SERVICE_CPUS=0.5
 USER_SERVICE_MEM_LIMIT=512m
 
-PRODUCT_SERVICE_BUILD=./product-service
-PRODUCT_SERVICE_IMAGE=dockeropt-product-service:latest
+PRODUCT_SERVICE_IMAGE=node:18-alpine
 PRODUCT_SERVICE_CONTAINER_NAME=dockeropt_product_service
 PRODUCT_SERVICE_PORT=5003
 PRODUCT_SERVICE_CPUS=0.5
 PRODUCT_SERVICE_MEM_LIMIT=512m
 
-NOTIFICATION_SERVICE_BUILD=./notification-service
-NOTIFICATION_SERVICE_IMAGE=dockeropt-notification-service:latest
+NOTIFICATION_SERVICE_IMAGE=node:18-alpine
 NOTIFICATION_SERVICE_CONTAINER_NAME=dockeropt_notification_service
 NOTIFICATION_SERVICE_PORT=5004
 NOTIFICATION_SERVICE_CPUS=0.5
