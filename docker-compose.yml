@@ -11,7 +11,7 @@ volumes:
     name: ${PROMETHEUS_DATA_VOLUME}
 
 services:
- 
+  # --- Frontend & Backend (Builds locaux) ---
   frontend:
     build:
       context: ${DOCKEROPT_FRONTEND_BUILD}
@@ -23,6 +23,9 @@ services:
       - "${FRONTEND_HOST_PORT}:${FRONTEND_HOST_PORT}"
     environment:
       REACT_APP_API_URL: ${DOCKEROPT_FRONTEND_API_URL}
+    depends_on:
+      backend:
+        condition: service_healthy
     networks:
       - dockeropt-network
 
@@ -56,6 +59,12 @@ services:
       ALERT_EMAIL_TO: ${ALERT_EMAIL_TO}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:5000/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     networks:
       - dockeropt-network
 
