@@ -73,11 +73,21 @@ EOF
             steps {
                 sh '''
                     set -e
+
+                    if [ ! -f .env ]; then
+                        echo "=========================================="
+                        echo "ERREUR: Le fichier .env est introuvable."
+                        echo "Veuillez exécuter le pipeline depuis le début (Build Now)."
+                        echo "=========================================="
+                        exit 1
+                    fi
+
                     echo "=========================================="
                     echo "VALIDATION DOCKER COMPOSE"
                     echo "=========================================="
 
                     docker compose --env-file .env config -q
+
                     echo "Docker Compose configuration OK."
                 '''
             }
@@ -87,11 +97,18 @@ EOF
             steps {
                 sh '''
                     set -e
+
+                    if [ ! -f .env ]; then
+                        echo "ERREUR: Fichier .env manquant."
+                        exit 1
+                    fi
+
                     echo "=========================================="
                     echo "BUILD DES IMAGES DOCKER"
                     echo "=========================================="
 
                     docker compose --env-file .env build
+
                     echo "Build terminé avec succès."
                 '''
             }
@@ -101,11 +118,18 @@ EOF
             steps {
                 sh '''
                     set -e
+
+                    if [ ! -f .env ]; then
+                        echo "ERREUR: Fichier .env manquant."
+                        exit 1
+                    fi
+
                     echo "=========================================="
                     echo "DEPLOIEMENT DOCKEROPT"
                     echo "=========================================="
 
                     docker compose --env-file .env up -d --remove-orphans
+
                     echo "Déploiement terminé."
                 '''
             }
@@ -115,6 +139,12 @@ EOF
             steps {
                 sh '''
                     set -e
+
+                    if [ ! -f .env ]; then
+                        echo "ERREUR: Fichier .env manquant."
+                        exit 1
+                    fi
+
                     echo "=========================================="
                     echo "ETAT DES SERVICES DOCKEROPT"
                     echo "=========================================="
@@ -133,6 +163,7 @@ EOF
     }
 
     post {
+
         success {
             echo '''
 ==========================================
