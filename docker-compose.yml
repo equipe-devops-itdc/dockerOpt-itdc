@@ -11,7 +11,7 @@ volumes:
     name: ${PROMETHEUS_DATA_VOLUME}
 
 services:
-  # --- Services avec build local (Dockerfile présent) ---
+  # --- Frontend & Backend (Builds locaux) ---
   frontend:
     build:
       context: ${DOCKEROPT_FRONTEND_BUILD}
@@ -57,7 +57,7 @@ services:
     networks:
       - dockeropt-network
 
-  # --- Microservices (sans build direct, basés sur une image runtime) ---
+  # --- Microservices ---
   api-gateway:
     image: ${API_GATEWAY_IMAGE}
     container_name: ${API_GATEWAY_CONTAINER_NAME}
