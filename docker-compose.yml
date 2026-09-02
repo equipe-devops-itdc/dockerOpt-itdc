@@ -11,7 +11,7 @@ volumes:
     name: ${PROMETHEUS_DATA_VOLUME}
 
 services:
-  # --- Frontend & Backend (Builds locaux) ---
+ 
   frontend:
     build:
       context: ${DOCKEROPT_FRONTEND_BUILD}

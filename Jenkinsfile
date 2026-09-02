@@ -119,6 +119,11 @@ pipeline {
     environment {
         COMPOSE_PROJECT_NAME = 'dockeropt'
         DEPLOY_DIR = '/opt/dockeropt'
+        // Désactive le mode "bake" de docker compose (build parallèle via buildx bake).
+        // Ce mode peut masquer/mal résoudre les chemins relatifs de contexte de build
+        // quand plusieurs services sont construits en même temps ; on repasse en
+        // build séquentiel classique, plus lent mais avec des erreurs plus lisibles.
+        COMPOSE_BAKE = 'false'
     }
 
     stages {
@@ -133,6 +138,50 @@ pipeline {
                 script {
                     createEnvFile()
                 }
+            }
+        }
+
+        // --- NOUVELLE ETAPE ---
+        // Vérifie AVANT de builder que les Dockerfile attendus existent bien
+        // aux chemins déclarés dans le .env (DOCKEROPT_FRONTEND_BUILD / DOCKEROPT_BACKEND_BUILD).
+        // Échoue avec un message clair + un état complet du workspace si un fichier manque,
+        // au lieu de laisser Docker Compose échouer avec une erreur peu explicite.
+        stage('Verify Build Context') {
+            steps {
+                sh '''
+                    set -e
+                    echo "=========================================="
+                    echo "VERIFICATION DES CONTEXTES DE BUILD"
+                    echo "=========================================="
+
+                    . ./.env 2>/dev/null || true
+                    export $(grep -v '^#' .env | xargs -d '\\n')
+
+                    echo "--- Arborescence du workspace (2 niveaux) ---"
+                    find . -maxdepth 3 -type d -not -path "*/.git*" -not -path "*/node_modules*"
+
+                    echo ""
+                    echo "--- Recherche de tous les Dockerfile du repo ---"
+                    find . -iname "Dockerfile*" -not -path "*/node_modules/*" -not -path "*/.git/*"
+
+                    echo ""
+                    echo "--- Contexte FRONTEND attendu: ${DOCKEROPT_FRONTEND_BUILD} ---"
+                    if [ ! -f "${DOCKEROPT_FRONTEND_BUILD}/Dockerfile" ]; then
+                        echo "ERREUR: Dockerfile introuvable dans ${DOCKEROPT_FRONTEND_BUILD}"
+                        ls -la "${DOCKEROPT_FRONTEND_BUILD}" 2>/dev/null || echo "Le dossier ${DOCKEROPT_FRONTEND_BUILD} n'existe pas du tout."
+                        exit 1
+                    fi
+                    echo "OK: ${DOCKEROPT_FRONTEND_BUILD}/Dockerfile trouvé."
+
+                    echo ""
+                    echo "--- Contexte BACKEND attendu: ${DOCKEROPT_BACKEND_BUILD} ---"
+                    if [ ! -f "${DOCKEROPT_BACKEND_BUILD}/Dockerfile" ]; then
+                        echo "ERREUR: Dockerfile introuvable dans ${DOCKEROPT_BACKEND_BUILD}"
+                        ls -la "${DOCKEROPT_BACKEND_BUILD}" 2>/dev/null || echo "Le dossier ${DOCKEROPT_BACKEND_BUILD} n'existe pas du tout."
+                        exit 1
+                    fi
+                    echo "OK: ${DOCKEROPT_BACKEND_BUILD}/Dockerfile trouvé."
+                '''
             }
         }
 
