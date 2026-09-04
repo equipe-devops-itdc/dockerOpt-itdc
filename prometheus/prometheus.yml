@@ -12,7 +12,7 @@ rule_files:
   - "alert.rules.yml"
 
 scrape_configs:
-  # DockerOpt Backend (custom metrics)
+  # DockerOpt Backend (métriques custom)
   - job_name: 'dockeropt-backend'
     scrape_interval: 10s
     metrics_path: '/metrics'

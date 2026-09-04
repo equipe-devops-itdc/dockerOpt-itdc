@@ -16,6 +16,7 @@ def createEnvFile() {
             set -x
             echo "--> Sanitization automatique des variables d'environnement..."
             
+            # Nettoyage automatique : suppression de http://, https:// et des slashes
             CLEAN_HOST=$(echo "${CRED_POSTGRES_HOST_RAW}" | sed -e 's|^https://||' -e 's|^http://||' -e 's|/.*||')
 
             echo "--> Génération dynamique du fichier .env (PostgreSQL Host: ${CLEAN_HOST})..."
@@ -99,33 +100,28 @@ PROMETHEUS_CONTAINER_NAME=dockeropt_prometheus
 PROMETHEUS_PORT=9090
 PROMETHEUS_RETENTION=15d
 PROMETHEUS_URL=http://prometheus:9090
+DOCKEROPT_PROMETHEUS_CONFIG=${WORKSPACE}/monitoring/prometheus.yml
+DOCKEROPT_PROMETHEUS_RULES=${WORKSPACE}/monitoring/alert.rules.yml
 
 NODE_EXPORTER_IMAGE=prom/node-exporter:latest
 NODE_EXPORTER_CONTAINER_NAME=dockeropt_node_exporter
 NODE_EXPORTER_PORT=9100
 EOF
             chmod 600 .env
+            echo "--> Fichier .env généré automatiquement."
 
-            echo "--> Génération automatique du fichier prometheus.yml..."
-            cat <<EOF > prometheus.yml
-global:
-  scrape_interval: 5s
-  evaluation_interval: 5s
-
-scrape_configs:
-  - job_name: 'prometheus'
-    static_configs:
-      - targets: ['localhost:9090']
-
-  - job_name: 'cadvisor'
-    static_configs:
-      - targets: ['dockeropt_cadvisor:8080']
-
-  - job_name: 'node-exporter'
-    static_configs:
-      - targets: ['dockeropt_node_exporter:9100']
-EOF
-            echo "--> Configuration de Prometheus générée."
+            echo "--> Vérification de la présence des fichiers de config Prometheus..."
+            if [ ! -f "${WORKSPACE}/monitoring/prometheus.yml" ]; then
+                echo "ERREUR : monitoring/prometheus.yml introuvable dans le workspace."
+                echo "Vérifiez que le fichier est bien commité dans le repo Git."
+                exit 1
+            fi
+            if [ ! -f "${WORKSPACE}/monitoring/alert.rules.yml" ]; then
+                echo "ERREUR : monitoring/alert.rules.yml introuvable dans le workspace."
+                echo "Vérifiez que le fichier est bien commité dans le repo Git."
+                exit 1
+            fi
+            echo "--> Fichiers de config Prometheus trouvés."
         '''
     }
 }
@@ -152,7 +148,7 @@ pipeline {
         stage('Environment Setup') {
             steps {
                 script {
-                    echo "=== [PHASE 2] Génération automatique de la configuration .env & Prometheus ==="
+                    echo "=== [PHASE 2] Génération automatique de la configuration .env ==="
                     createEnvFile()
                 }
             }
@@ -189,6 +185,9 @@ pipeline {
                     echo "Vérification du statut des conteneurs :"
                     docker ps --format "table {{.Names}}\\t{{.Status}}\\t{{.Ports}}"
 
+                    echo "Vérification des targets Prometheus :"
+                    curl -s http://localhost:9090/api/v1/targets | grep -o '"health":"[a-z]*"' || true
+
                     echo "Test d'intégration automatisé (Login API)..."
                     HTTP_STATUS=$(curl -s -o response.json -w "%{http_code}" -X POST http://localhost:5000/api/auth/login \
                       -H "Content-Type: application/json" \
@@ -224,6 +223,7 @@ pipeline {
             echo '   DEPLOIEMENT OU TEST CI/CD : ÉCHEC !'
             echo '==========================================='
             sh 'docker logs dockeropt_backend --tail 50 || true'
+            sh 'docker logs dockeropt_prometheus --tail 50 || true'
         }
 
         always {
