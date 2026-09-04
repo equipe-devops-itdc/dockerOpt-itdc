@@ -16,11 +16,12 @@ def createEnvFile() {
             set -x
             CLEAN_HOST=$(echo "${CRED_POSTGRES_HOST_RAW}" | sed -e 's|^https://||' -e 's|^http://||' -e 's|/.*||')
 
-            # Nettoyage obligatoire si Docker a cree un dossier fantome prometheus.yml
-            rm -rf prometheus.yml
+            # 1. SUPPRESSION FORCÉE : Supprime le répertoire parasite crée par Docker s'il existe
+            rm -rf "${WORKSPACE}/prometheus.yml"
+            rm -f "${WORKSPACE}/.env"
 
-            # Generation dynamique du fichier prometheus.yml
-            cat <<'EOF' > prometheus.yml
+            # 2. CRÉATION DU FICHIER prometheus.yml EN TANT QUE FICHIER TEXTE
+            cat <<'EOF' > "${WORKSPACE}/prometheus.yml"
 global:
   scrape_interval: 5s
   evaluation_interval: 5s
@@ -39,8 +40,8 @@ scrape_configs:
       - targets: ['cadvisor:8080']
 EOF
 
-            # Generation dynamique du fichier .env
-            cat <<EOF > .env
+            # 3. CRÉATION DU FICHIER .env
+            cat <<EOF > "${WORKSPACE}/.env"
 POSTGRES_HOST=${CLEAN_HOST}
 POSTGRES_PORT=${CRED_POSTGRES_PORT}
 POSTGRES_USER=${CRED_POSTGRES_USER}
@@ -124,8 +125,11 @@ NODE_EXPORTER_IMAGE=prom/node-exporter:latest
 NODE_EXPORTER_CONTAINER_NAME=dockeropt_node_exporter
 NODE_EXPORTER_PORT=9100
 EOF
-            chmod 644 prometheus.yml
-            chmod 600 .env
+            chmod 644 "${WORKSPACE}/prometheus.yml"
+            chmod 600 "${WORKSPACE}/.env"
+
+            # Vérification dans les logs Jenkins pour confirmer que c'est bien un fichier
+            ls -la "${WORKSPACE}/prometheus.yml"
         '''
     }
 }
@@ -146,17 +150,21 @@ pipeline {
             }
         }
 
+        stage('Nettoyage Pre-build') {
+            steps {
+                // Arrêt des conteneurs et suppression du dossier parasite avant la génération
+                sh label: 'Clean Environment', script: '''
+                    docker compose down --remove-orphans || true
+                    rm -rf "${WORKSPACE}/prometheus.yml"
+                '''
+            }
+        }
+
         stage('Configuration') {
             steps {
                 script {
                     createEnvFile()
                 }
-            }
-        }
-
-        stage('Nettoyage Conteneurs') {
-            steps {
-                sh label: 'Arret des conteneurs existants', script: 'docker compose --env-file .env down --remove-orphans || true'
             }
         }
 
