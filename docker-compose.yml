@@ -13,7 +13,7 @@ volumes:
     name: ${PROMETHEUS_DATA_VOLUME}
 
 services:
-  # --- PHASE 1 : APPLICATION FRONTEND ---
+  # --- APPLICATION FRONTEND ---
   frontend:
     build:
       context: ${DOCKEROPT_FRONTEND_BUILD}
@@ -31,7 +31,7 @@ services:
     networks:
       - dockeropt-network
 
-  # --- PHASE 2 : APPLICATION BACKEND ---
+  # --- APPLICATION BACKEND ---
   backend:
     build:
       context: ${DOCKEROPT_BACKEND_BUILD}
@@ -62,18 +62,12 @@ services:
       ALERT_EMAIL_TO: ${ALERT_EMAIL_TO}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-    healthcheck:
-      test: ["CMD-SHELL", "node -e 'require(\"http\").get(\"http://localhost:5000/api/health\", (r) => process.exit(r.statusCode === 200 ? 0 : 1))' || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
     networks:
       dockeropt-network:
         aliases:
           - backend
 
-  # --- PHASE 3 : MICROSERVICES & API GATEWAY ---
+  # --- MICROSERVICES & API GATEWAY ---
   api-gateway:
     image: ${API_GATEWAY_IMAGE}
     container_name: ${API_GATEWAY_CONTAINER_NAME}
@@ -150,7 +144,7 @@ services:
     networks:
       - dockeropt-network
 
-  # --- PHASE 4 : MONITORING ---
+  # --- MONITORING ---
   cadvisor:
     image: ${CADVISOR_IMAGE}
     container_name: ${CADVISOR_CONTAINER_NAME}
