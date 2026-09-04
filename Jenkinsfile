@@ -14,10 +14,11 @@ def createEnvFile() {
     ]) {
         sh '''
             set +x
-            # Suppression de http:// ou https:// si présent dans la variable
+            echo "Nettoyage du nom d'hôte PostgreSQL..."
+            # Supprime http://, https:// et d'éventuels slashes résiduels
             CLEAN_HOST=$(echo "${CRED_POSTGRES_HOST_RAW}" | sed -e 's|^https://||' -e 's|^http://||' -e 's|/.*||')
 
-            echo "Génération du fichier .env temporaire (DB Host: ${CLEAN_HOST})..."
+            echo "Génération du fichier .env temporaire (DB Host cible : ${CLEAN_HOST})..."
 
             cat <<EOF > .env
 POSTGRES_HOST=${CLEAN_HOST}
@@ -106,5 +107,98 @@ EOF
             chmod 600 .env
             echo "Fichier .env généré avec succès."
         '''
+    }
+}
+
+pipeline {
+    agent any
+
+    environment {
+        COMPOSE_PROJECT_NAME = 'dockeropt'
+        DOCKER_BUILDKIT = '1'
+        COMPOSE_DOCKER_CLI_BUILD = '1'
+    }
+
+    stages {
+        stage('Phase 1 : Checkout') {
+            steps {
+                echo "Récupération du code source depuis Git..."
+                checkout scm
+            }
+        }
+
+        stage('Phase 2 : Environment Setup') {
+            steps {
+                echo "Création du fichier d'environnement .env..."
+                script {
+                    createEnvFile()
+                }
+            }
+        }
+
+        stage('Phase 3 : Validate Docker Config') {
+            steps {
+                echo "Validation de la configuration Docker Compose..."
+                sh 'docker compose --env-file .env config -q'
+            }
+        }
+
+        stage('Phase 4 : Fast Build') {
+            steps {
+                echo "Build des images Docker en mode parallèle..."
+                sh 'docker compose --env-file .env build --parallel'
+            }
+        }
+
+        stage('Phase 5 : Deploy Services') {
+            steps {
+                echo "Démarrage et mise à jour des conteneurs..."
+                sh 'docker compose --env-file .env up -d --remove-orphans'
+            }
+        }
+
+        stage('Phase 6 : Verify Containers') {
+            steps {
+                echo "Vérification du statut des services déployés..."
+                sh '''
+                    set -e
+                    echo "=== ÉTAT DES SERVICES DOCKER COMPOSE ==="
+                    docker compose --env-file .env ps
+                    
+                    echo ""
+                    echo "=== CONTENEURS ACTIFS ET PORTS ASOCIÉS ==="
+                    docker ps --format "table {{.Names}}\\t{{.Status}}\\t{{.Ports}}"
+                '''
+            }
+        }
+    }
+
+    post {
+        success {
+            echo '''
+==========================================
+  DockerOpt Deployment: SUCCESS !
+==========================================
+'''
+        }
+
+        failure {
+            echo '''
+==========================================
+  DockerOpt Deployment: FAILED !
+==========================================
+'''
+            sh '''
+                echo "--- ERREUR DÉTECTÉE : EXTRAIT DES LOGS DU BACKEND ---"
+                docker logs dockeropt_backend --tail 50 || true
+            '''
+        }
+
+        always {
+            sh '''
+                echo "Suppression sécurisée des fichiers temporaires .env..."
+                rm -f .env .env.jenkins || true
+            '''
+        }
     }
 }
