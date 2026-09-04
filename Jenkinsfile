@@ -100,8 +100,6 @@ PROMETHEUS_CONTAINER_NAME=dockeropt_prometheus
 PROMETHEUS_PORT=9090
 PROMETHEUS_RETENTION=15d
 PROMETHEUS_URL=http://prometheus:9090
-DOCKEROPT_PROMETHEUS_CONFIG=${WORKSPACE}/monitoring/prometheus.yml
-DOCKEROPT_PROMETHEUS_RULES=${WORKSPACE}/monitoring/alert.rules.yml
 
 NODE_EXPORTER_IMAGE=prom/node-exporter:latest
 NODE_EXPORTER_CONTAINER_NAME=dockeropt_node_exporter
@@ -109,19 +107,6 @@ NODE_EXPORTER_PORT=9100
 EOF
             chmod 600 .env
             echo "--> Fichier .env généré automatiquement."
-
-            echo "--> Vérification de la présence des fichiers de config Prometheus..."
-            if [ ! -f "${WORKSPACE}/monitoring/prometheus.yml" ]; then
-                echo "ERREUR : monitoring/prometheus.yml introuvable dans le workspace."
-                echo "Vérifiez que le fichier est bien commité dans le repo Git."
-                exit 1
-            fi
-            if [ ! -f "${WORKSPACE}/monitoring/alert.rules.yml" ]; then
-                echo "ERREUR : monitoring/alert.rules.yml introuvable dans le workspace."
-                echo "Vérifiez que le fichier est bien commité dans le repo Git."
-                exit 1
-            fi
-            echo "--> Fichiers de config Prometheus trouvés."
         '''
     }
 }
@@ -185,9 +170,6 @@ pipeline {
                     echo "Vérification du statut des conteneurs :"
                     docker ps --format "table {{.Names}}\\t{{.Status}}\\t{{.Ports}}"
 
-                    echo "Vérification des targets Prometheus :"
-                    curl -s http://localhost:9090/api/v1/targets | grep -o '"health":"[a-z]*"' || true
-
                     echo "Test d'intégration automatisé (Login API)..."
                     HTTP_STATUS=$(curl -s -o response.json -w "%{http_code}" -X POST http://localhost:5000/api/auth/login \
                       -H "Content-Type: application/json" \
@@ -223,7 +205,6 @@ pipeline {
             echo '   DEPLOIEMENT OU TEST CI/CD : ÉCHEC !'
             echo '==========================================='
             sh 'docker logs dockeropt_backend --tail 50 || true'
-            sh 'docker logs dockeropt_prometheus --tail 50 || true'
         }
 
         always {

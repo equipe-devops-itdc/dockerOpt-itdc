@@ -70,12 +70,8 @@ services:
       start_period: 30s
     networks:
       dockeropt-network:
-        # "dockeropt-backend" ajouté pour matcher la target utilisée dans
-        # prometheus.yml (job "dockeropt-backend"). "backend" est conservé
-        # pour compatibilité avec les autres services qui l'utilisent déjà.
         aliases:
           - backend
-          - dockeropt-backend
 
   # --- PHASE 3 : MICROSERVICES & API GATEWAY ---
   api-gateway:
@@ -184,12 +180,6 @@ services:
     ports:
       - "${PROMETHEUS_PORT}:${PROMETHEUS_PORT}"
     volumes:
-      # --- fichiers de config manquants dans la version précédente ---
-      - ${DOCKEROPT_PROMETHEUS_CONFIG}:/etc/prometheus/prometheus.yml:ro
-      - ${DOCKEROPT_PROMETHEUS_RULES}:/etc/prometheus/alert.rules.yml:ro
-      # nécessaire pour le job "docker" (docker_sd_configs) qui fait de
-      # l'auto-découverte via le socket Docker
-      - /var/run/docker.sock:/var/run/docker.sock:ro
       - prometheus-data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
