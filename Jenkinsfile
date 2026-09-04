@@ -116,7 +116,6 @@ pipeline {
     }
 
     stages {
-        // --- PHASE 1 : CHECKOUT ---
         stage('Phase 1 : Checkout') {
             steps {
                 echo "Récupération du code source..."
@@ -124,7 +123,6 @@ pipeline {
             }
         }
 
-        // --- PHASE 2 : ENVIRONMENT SETUP ---
         stage('Phase 2 : Environment Setup') {
             steps {
                 echo "Création du fichier d'environnement .env..."
@@ -134,7 +132,6 @@ pipeline {
             }
         }
 
-        // --- PHASE 3 : VALIDATE CONFIG ---
         stage('Phase 3 : Validate Docker Config') {
             steps {
                 echo "Validation de la configuration Docker Compose..."
@@ -142,7 +139,6 @@ pipeline {
             }
         }
 
-        // --- PHASE 4 : PARALLEL BUILD ---
         stage('Phase 4 : Fast Build') {
             steps {
                 echo "Build rapide des images Docker (mode parallèle et utilisation du cache)..."
@@ -150,7 +146,6 @@ pipeline {
             }
         }
 
-        // --- PHASE 5 : DEPLOYMENT ---
         stage('Phase 5 : Deploy Services') {
             steps {
                 echo "Démarrage des conteneurs en arrière-plan..."
@@ -158,7 +153,6 @@ pipeline {
             }
         }
 
-        // --- PHASE 6 : VERIFICATION ---
         stage('Phase 6 : Verify Containers') {
             steps {
                 echo "Vérification de l'état des services..."

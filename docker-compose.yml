@@ -20,7 +20,7 @@ services:
     container_name: ${DOCKEROPT_FRONTEND_CONTAINER_NAME}
     restart: always
     ports:
-      - "${FRONTEND_HOST_PORT}:80"  # <--- REMPLACER DE "${FRONTEND_HOST_PORT}:${FRONTEND_HOST_PORT}" A "${FRONTEND_HOST_PORT}:80"
+      - "${FRONTEND_HOST_PORT}:80"
     environment:
       REACT_APP_API_URL: ${DOCKEROPT_FRONTEND_API_URL}
     depends_on:
