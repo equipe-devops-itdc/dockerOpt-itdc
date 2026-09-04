@@ -154,43 +154,49 @@ pipeline {
 
         stage('Automated Healthcheck & Integration Test') {
             steps {
-                echo "=== [PHASE 6] Test automatisé de santé et d'authentification ==="
-                sh '''
-                    echo "Attente du démarrage du backend (10 secondes)..."
-                    sleep 10
-                    
-                    echo "Vérification du statut des conteneurs :"
-                    docker ps --format "table {{.Names}}\\t{{.Status}}"
+                withCredentials([
+                    string(credentialsId: 'DOCKEROPT_ADMIN_EMAIL_ID', variable: 'TEST_EMAIL'),
+                    string(credentialsId: 'DOCKEROPT_ADMIN_PASSWORD_ID', variable: 'TEST_PASS')
+                ]) {
+                    echo "=== [PHASE 6] Test automatisé de santé et d'authentification ==="
+                    sh '''
+                        echo "Attente du démarrage complet du backend (15 secondes)..."
+                        sleep 15
+                        
+                        echo "Vérification du statut des conteneurs :"
+                        docker ps --format "table {{.Names}}\\t{{.Status}}"
 
-                    echo "Test d'intégration automatisé à l'intérieur du réseau interne Docker..."
-                    HTTP_STATUS=$(docker exec dockeropt_backend node -e '
-                        const http = require("http");
-                        const data = JSON.stringify({ email: "'"${CRED_ADMIN_EMAIL}"'", password: "'"${CRED_ADMIN_PASSWORD}"'" });
-                        const req = http.request({
-                            hostname: "localhost",
-                            port: 5000,
-                            path: "/api/auth/login",
-                            method: "POST",
-                            headers: {
-                                "Content-Type": "application/json",
-                                "Content-Length": data.length
-                            }
-                        }, (res) => {
-                            console.log(res.statusCode);
-                        });
-                        req.write(data);
-                        req.end();
-                    ')
+                        echo "Test d'intégration automatisé à l'intérieur du réseau interne Docker..."
+                        HTTP_STATUS=$(docker exec -e TEST_EMAIL="${TEST_EMAIL}" -e TEST_PASS="${TEST_PASS}" dockeropt_backend node -e '
+                            const http = require("http");
+                            const data = JSON.stringify({ email: process.env.TEST_EMAIL, password: process.env.TEST_PASS });
+                            const req = http.request({
+                                hostname: "localhost",
+                                port: 5000,
+                                path: "/api/auth/login",
+                                method: "POST",
+                                headers: {
+                                    "Content-Type": "application/json",
+                                    "Content-Length": Buffer.byteLength(data)
+                                }
+                            }, (res) => {
+                                console.log(res.statusCode);
+                            });
+                            req.on("error", () => console.log("500"));
+                            req.write(data);
+                            req.end();
+                        ')
 
-                    echo "Code de réponse HTTP : $HTTP_STATUS"
+                        echo "Code de réponse HTTP : $HTTP_STATUS"
 
-                    if [ "$HTTP_STATUS" -ne 200 ]; then
-                        echo "ERREUR : Le test d'authentification a échoué (Code HTTP: $HTTP_STATUS)"
-                        exit 1
-                    fi
-                    
-                    echo "--> Authentification validée avec succès dans le pipeline !"
-                '''
+                        if [ "$HTTP_STATUS" -ne 200 ]; then
+                            echo "ERREUR : Le test d'authentification a échoué (Code HTTP: $HTTP_STATUS)"
+                            exit 1
+                        fi
+                        
+                        echo "--> Authentification validée avec succès dans le pipeline !"
+                    '''
+                }
             }
         }
     }
