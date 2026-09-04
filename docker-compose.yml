@@ -155,15 +155,16 @@ services:
     ports:
       - "${CADVISOR_HOST_PORT}:8080"
     volumes:
-      - /:/rootfs:ro,z
-      - /var/run:/var/run:ro,z
-      - /sys:/sys:ro,z
-      - /var/lib/docker/:/var/lib/docker:ro,z
-      - /dev/disk/:/dev/disk:ro,z
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
     command:
       - '--housekeeping_interval=10s'
       - '--docker_only=true'
-      - '--disable_metrics=advtcp,process,percpu,sched,tcp,udp,disk,diskIO'
+      - '--disable_metrics=advtcp,process,percpu,sched,tcp,udp,disk,diskIO,resctrl'
+      - '--store_container_labels=false'
     networks:
       - dockeropt-network
 
@@ -174,6 +175,7 @@ services:
     ports:
       - "${PROMETHEUS_PORT}:${PROMETHEUS_PORT}"
     volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
@@ -186,17 +188,18 @@ services:
     image: ${NODE_EXPORTER_IMAGE}
     container_name: ${NODE_EXPORTER_CONTAINER_NAME}
     restart: always
+    privileged: true
     pid: host
     ports:
       - "${NODE_EXPORTER_PORT}:${NODE_EXPORTER_PORT}"
     volumes:
-      - /proc:/host/proc:ro,z
-      - /sys:/host/sys:ro,z
-      - /:/rootfs:ro,z
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
     command:
       - '--path.procfs=/host/proc'
-      - '--path.rootfs=/rootfs'
       - '--path.sysfs=/host/sys'
+      - '--path.rootfs=/rootfs'
       - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
     networks:
       - dockeropt-network
