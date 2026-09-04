@@ -1,5 +1,3 @@
-version: '3.8'
-
 networks:
   dockeropt-network:
     name: ${DOCKEROPT_NETWORK_NAME}
