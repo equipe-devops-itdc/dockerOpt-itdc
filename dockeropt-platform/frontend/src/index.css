@@ -4,7 +4,7 @@
 
 @layer base {
   :root {
-    /* Thème sombre — ardoise/sarcelle profonde (plutôt qu'un noir-bleu pur),
+    /* Thème sombre — ardoise/sarcelle profonde,
        accent cyan électrique, grille technique et lueurs bleu/vert animées. */
     --ink-950: 10 16 18;
     --ink-900: 13 20 23;
@@ -27,10 +27,7 @@
   }
 
   :root.light {
-    /* Thème clair — surfaces blanches façon "salle de contrôle diurne" :
-       échelle slate propre, accent vert émeraude (sécurité/validé), grille
-       et lueurs bleu/vert reprises en beaucoup plus subtil pour ne jamais
-       nuire à la lisibilité sur fond clair. */
+    /* Thème clair — surfaces blanches façon "salle de contrôle diurne" */
     --ink-950: 255 255 255;
     --ink-900: 248 250 252;
     --ink-800: 255 255 255;
@@ -63,13 +60,7 @@
     transition: background-color 0.2s ease, color 0.2s ease;
   }
 
-  /* ---- Arrière-plan animé "cybersécurité" (les deux thèmes) ----
-     Grille technique en lente dérive diagonale + deux lueurs qui pulsent
-     doucement (bleu/vert). Entièrement en CSS — background-position,
-     transform et opacity uniquement, donc accéléré matériellement et sans
-     coût de mise en page ni de performance. Intensité réduite en mode
-     clair pour rester discret sur fond blanc ; désactivé pour les
-     personnes ayant demandé moins d'animations dans leur système. */
+  /* ---- Arrière-plan animé "cybersécurité" ---- */
   body::before,
   body::after {
     content: '';
@@ -87,8 +78,7 @@
     animation: gridDrift 60s linear infinite;
     mask-image: radial-gradient(1200px 800px at 50% 0%, black, transparent 75%);
   }
-  /* Léger champ d'étoiles, mode sombre uniquement — complète l'ambiance
-     "spatiale" (motif tuilé, très discret, purement décoratif). */
+
   :root:not(.light) body::before {
     background-image:
       radial-gradient(1.4px 1.4px at 15% 20%, rgba(255,255,255,0.55), transparent),
@@ -143,10 +133,6 @@
     @apply bg-ink-800/55 border border-ink-500 rounded-xl backdrop-blur-md relative;
     box-shadow: var(--panel-shadow);
   }
-  /* Panneau "vitre" décoré — bordure lumineuse dégradée, fond très
-     transparent avec flou prononcé, dans l'esprit de la référence
-     visuelle (cartes translucides sur fond spatial). Utilisé pour les
-     zones qu'on veut mettre en avant (ex: en-tête du tableau de bord). */
   .panel-glow {
     @apply rounded-2xl backdrop-blur-md;
     background: linear-gradient(160deg, rgb(var(--ink-800) / 0.55), rgb(var(--ink-800) / 0.25));
@@ -176,9 +162,8 @@
   }
 }
 
-
 /* =========================================================
-   DockerOpt — premium DevOps login (compact, no-scroll)
+   DockerOpt — premium DevOps login (style MinIO)
    ========================================================= */
 
 .login-shell {
@@ -436,7 +421,7 @@
   box-shadow: 0 0 9px rgb(var(--accent) / .8);
 }
 
-/* -------- 3D DevOps scene -------- */
+/* -------- 3D DevOps scene (Animation MinIO) -------- */
 
 .devops-stage {
   min-width: 0;
@@ -670,7 +655,7 @@
   font-size: 9px;
 }
 
-/* Animation keyframes */
+/* Keyframes d'animations */
 
 @keyframes loginGridMove {
   to { background-position: 92px 92px; }
@@ -791,7 +776,6 @@
   }
 }
 
-/* Écrans courts (petits laptops / fenêtre réduite) : on resserre encore */
 @media (max-height: 760px) and (min-width: 981px) {
   .login-layout { height: min(600px, calc(100svh - 24px)); gap: 32px; }
   .login-heading { margin: 14px 0 12px; }

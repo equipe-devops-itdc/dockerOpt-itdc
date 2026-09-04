@@ -164,9 +164,9 @@ export default function LoginView() {
           </div>
 
           <div className="devops-stats">
-            <div><strong>cAdvisor</strong><span>Containers</span></div>
-            <div><strong>Prometheus</strong><span>Metrics</span></div>
-            <div><strong>PostgreSQL</strong><span>Identity</span></div>
+            <div><strong>Sytème</strong><span>Containers</span></div>
+            <div><strong>Télémétrie</strong><span>Metrics</span></div>
+            <div><strong>Sécurité</strong><span>Identity</span></div>
           </div>
         </aside>
       </section>
