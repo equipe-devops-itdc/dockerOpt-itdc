@@ -1,17 +1,93 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   ShieldCheck,
   Loader2,
   CircleX,
   Eye,
   EyeOff,
-  Activity,
-  Server,
-  Container,
-  Gauge,
-  Terminal,
 } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
+
+// Composant pour reproduire la vague filaire 3D de MinIO
+function MinioWaveCanvas() {
+  const canvasRef = useRef(null)
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    let animationFrameId
+
+    let width = (canvas.width = canvas.offsetWidth)
+    let height = (canvas.height = canvas.offsetHeight)
+
+    const handleResize = () => {
+      if (!canvas) return
+      width = canvas.width = canvas.offsetWidth
+      height = canvas.height = canvas.offsetHeight
+    }
+    window.addEventListener('resize', handleResize)
+
+    // Configuration de la grille
+    const cols = 45
+    const rows = 28
+    let step = 0
+
+    const render = () => {
+      step += 0.025
+      ctx.clearRect(0, 0, width, height)
+
+      ctx.save()
+      // Origine centrée avec perspective
+      ctx.translate(width * 0.5, height * 0.65)
+
+      const spacingX = width / (cols * 0.8)
+      const spacingY = height / (rows * 1.5)
+
+      // Rendu de la grille filaire avec lignes horizontales et verticales
+      for (let r = 0; r < rows; r++) {
+        ctx.beginPath()
+        for (let c = 0; c < cols; c++) {
+          const x = (c - cols / 2) * spacingX
+          const z = r * spacingY
+
+          // Calcul de la déformation en vague
+          const distance = Math.sqrt(x * x + z * z)
+          const wave = Math.sin(distance * 0.015 - step) * 28 + Math.cos(c * 0.3 + step) * 12
+
+          // Projection perspective 3D -> 2D
+          const perspective = 300 / (300 + z)
+          const projX = x * perspective
+          const projY = (wave - z * 0.35) * perspective
+
+          if (c === 0) {
+            ctx.moveTo(projX, projY)
+          } else {
+            ctx.lineTo(projX, projY)
+          }
+        }
+
+        // Degradé bleu/cyan de la vague MinIO
+        const alpha = Math.max(0, 1 - r / rows)
+        ctx.strokeStyle = `rgba(45, 212, 191, ${alpha * 0.65})`
+        ctx.lineWidth = 1.2
+        ctx.stroke()
+      }
+
+      ctx.restore()
+      animationFrameId = requestAnimationFrame(render)
+    }
+
+    render()
+
+    return () => {
+      window.removeEventListener('resize', handleResize)
+      cancelAnimationFrame(animationFrameId)
+    }
+  }, [])
+
+  return <canvas ref={canvasRef} className="minio-wave-canvas" />
+}
 
 export default function LoginView() {
   const { login, error } = useAuth()
@@ -32,6 +108,7 @@ export default function LoginView() {
       <div className="login-grid-glow" aria-hidden="true" />
 
       <section className="login-layout">
+        {/* Formulaire DockerOpt : Forme et style strictement conservés */}
         <div className="login-panel-wrap">
           <form onSubmit={handleSubmit} className="login-card">
             <div className="login-brand">
@@ -85,7 +162,6 @@ export default function LoginView() {
                     className="login-password-toggle"
                     onClick={() => setShowPassword((visible) => !visible)}
                     aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
-                    title={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
                   >
                     {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
                   </button>
@@ -113,7 +189,8 @@ export default function LoginView() {
           </form>
         </div>
 
-        <aside className="devops-stage" aria-label="Aperçu animé de DockerOpt">
+        {/* Section visuelle avec la vague 3D MinIO */}
+        <aside className="devops-stage" aria-label="Aperçu visuel DockerOpt">
           <div className="devops-stage-copy">
             <span className="login-eyebrow">OBSERVABILITÉ • AUTOMATISATION • OPTIMISATION</span>
             <h2>Votre infrastructure,<br /><strong>sous contrôle.</strong></h2>
@@ -123,44 +200,8 @@ export default function LoginView() {
             </p>
           </div>
 
-          <div className="devops-scene" aria-hidden="true">
-            <div className="scene-orbit orbit-a" />
-            <div className="scene-orbit orbit-b" />
-            <div className="scene-orbit orbit-c" />
-
-            <div className="scene-core">
-              <div className="core-glass">
-                <Container size={42} strokeWidth={1.35} />
-                <span>DOCKER</span>
-                <b>OPT</b>
-              </div>
-              <div className="core-scan" />
-            </div>
-
-            <div className="scene-node node-server">
-              <Server size={18} />
-              <span>HOST</span>
-              <b>CPU 42%</b>
-            </div>
-            <div className="scene-node node-metrics">
-              <Activity size={18} />
-              <span>METRICS</span>
-              <b>LIVE</b>
-            </div>
-            <div className="scene-node node-gauge">
-              <Gauge size={18} />
-              <span>OPTIMIZER</span>
-              <b>READY</b>
-            </div>
-            <div className="scene-node node-terminal">
-              <Terminal size={17} />
-              <span>SECURITY</span>
-              <b>SCAN</b>
-            </div>
-
-            <div className="scene-packet packet-one" />
-            <div className="scene-packet packet-two" />
-            <div className="scene-packet packet-three" />
+          <div className="wave-container">
+            <MinioWaveCanvas />
           </div>
 
           <div className="devops-stats">
