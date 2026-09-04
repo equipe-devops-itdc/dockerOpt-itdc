@@ -14,10 +14,12 @@ def createEnvFile() {
     ]) {
         sh '''
             set -x
-            echo "--> Nettoyage du nom d'hôte PostgreSQL..."
+            echo "--> Sanitization automatique des variables d'environnement..."
+            
+            # Nettoyage automatique : suppression de http://, https:// et des slashes
             CLEAN_HOST=$(echo "${CRED_POSTGRES_HOST_RAW}" | sed -e 's|^https://||' -e 's|^http://||' -e 's|/.*||')
 
-            echo "--> Génération du fichier .env temporaire (DB Host : ${CLEAN_HOST})..."
+            echo "--> Génération dynamique du fichier .env (PostgreSQL Host: ${CLEAN_HOST})..."
 
             cat <<EOF > .env
 POSTGRES_HOST=${CLEAN_HOST}
@@ -104,7 +106,7 @@ NODE_EXPORTER_CONTAINER_NAME=dockeropt_node_exporter
 NODE_EXPORTER_PORT=9100
 EOF
             chmod 600 .env
-            echo "--> Fichier .env prêt !"
+            echo "--> Fichier .env généré automatiquement."
         '''
     }
 }
@@ -122,7 +124,7 @@ pipeline {
         stage('Checkout') {
             steps {
                 script {
-                    echo "=== [PHASE 1] Récupération du dépôt Git ==="
+                    echo "=== [PHASE 1] Récupération du code source ==="
                     checkout scm
                 }
             }
@@ -131,7 +133,7 @@ pipeline {
         stage('Environment Setup') {
             steps {
                 script {
-                    echo "=== [PHASE 2] Création de la configuration .env ==="
+                    echo "=== [PHASE 2] Génération automatique de la configuration .env ==="
                     createEnvFile()
                 }
             }
@@ -139,33 +141,53 @@ pipeline {
 
         stage('Validate Docker Config') {
             steps {
-                echo "=== [PHASE 3] Validation syntaxique de Docker Compose ==="
+                echo "=== [PHASE 3] Validation de la configuration Docker Compose ==="
                 sh 'docker compose --env-file .env config'
             }
         }
 
         stage('Build Docker Images') {
             steps {
-                echo "=== [PHASE 4] Construction des images Docker ==="
+                echo "=== [PHASE 4] Construction automatisée des images Docker ==="
                 sh 'docker compose --env-file .env build'
             }
         }
 
         stage('Deploy Services') {
             steps {
-                echo "=== [PHASE 5] Lancement des conteneurs ==="
-                sh 'docker compose --env-file .env up -d --remove-orphans'
+                echo "=== [PHASE 5] Déploiement et recréation des conteneurs ==="
+                sh 'docker compose --env-file .env up -d --force-recreate --remove-orphans'
             }
         }
 
-        stage('Verify Containers') {
+        stage('Automated Healthcheck & Integration Test') {
             steps {
-                echo "=== [PHASE 6] Vérification des services et conteneurs actifs ==="
+                echo "=== [PHASE 6] Test automatisé de santé et d'authentification ==="
                 sh '''
-                    echo "--- Statut des services ---"
-                    docker compose --env-file .env ps
-                    echo "--- Conteneurs en cours d'exécution ---"
+                    echo "Attente du démarrage du backend (10 secondes)..."
+                    sleep 10
+                    
+                    echo "Vérification du statut des conteneurs :"
                     docker ps --format "table {{.Names}}\\t{{.Status}}\\t{{.Ports}}"
+
+                    echo "Test d'intégration automatisé (Login API)..."
+                    HTTP_STATUS=$(curl -s -o response.json -w "%{http_code}" -X POST http://localhost:5000/api/auth/login \
+                      -H "Content-Type: application/json" \
+                      -d '{
+                        "email": "'"${CRED_ADMIN_EMAIL}"'",
+                        "password": "'"${CRED_ADMIN_PASSWORD}"'"
+                      }')
+
+                    echo "Code de réponse HTTP : $HTTP_STATUS"
+                    cat response.json
+                    rm -f response.json
+
+                    if [ "$HTTP_STATUS" -ne 200 ]; then
+                        echo "ERREUR : Le test d'authentification a échoué (Code HTTP: $HTTP_STATUS)"
+                        exit 1
+                    fi
+                    
+                    echo "--> Authentification validée avec succès dans le pipeline !"
                 '''
             }
         }
@@ -174,13 +196,13 @@ pipeline {
     post {
         success {
             echo '==========================================='
-            echo '   DEPLOIEMENT DOCKEROPT : SUCCES !'
+            echo '   DEPLOIEMENT ET TESTS CI/CD : SUCCÈS !'
             echo '==========================================='
         }
 
         failure {
             echo '==========================================='
-            echo '   DEPLOIEMENT DOCKEROPT : ECHEC !'
+            echo '   DEPLOIEMENT OU TEST CI/CD : ÉCHEC !'
             echo '==========================================='
             sh 'docker logs dockeropt_backend --tail 50 || true'
         }
