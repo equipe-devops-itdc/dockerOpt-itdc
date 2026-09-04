@@ -1,6 +1,6 @@
 def createEnvFile() {
     withCredentials([
-        string(credentialsId: 'POSTGRES_HOST_ID', variable: 'CRED_POSTGRES_HOST'),
+        string(credentialsId: 'POSTGRES_HOST_ID', variable: 'CRED_POSTGRES_HOST_RAW'),
         string(credentialsId: 'POSTGRES_PORT_ID', variable: 'CRED_POSTGRES_PORT'),
         string(credentialsId: 'POSTGRES_USER_ID', variable: 'CRED_POSTGRES_USER'),
         string(credentialsId: 'POSTGRES_PASSWORD_ID', variable: 'CRED_POSTGRES_PASSWORD'),
@@ -14,21 +14,24 @@ def createEnvFile() {
     ]) {
         sh '''
             set +x
-            echo "Génération du fichier .env temporaire..."
+            # Suppression de http:// ou https:// si présent dans la variable
+            CLEAN_HOST=$(echo "${CRED_POSTGRES_HOST_RAW}" | sed -e 's|^https://||' -e 's|^http://||' -e 's|/.*||')
+
+            echo "Génération du fichier .env temporaire (DB Host: ${CLEAN_HOST})..."
 
             cat <<EOF > .env
-POSTGRES_HOST=${CRED_POSTGRES_HOST}
+POSTGRES_HOST=${CLEAN_HOST}
 POSTGRES_PORT=${CRED_POSTGRES_PORT}
 POSTGRES_USER=${CRED_POSTGRES_USER}
 POSTGRES_PASSWORD=${CRED_POSTGRES_PASSWORD}
 POSTGRES_DB=dockeropt
 
-DB_HOST=${CRED_POSTGRES_HOST}
+DB_HOST=${CLEAN_HOST}
 DB_PORT=${CRED_POSTGRES_PORT}
 DB_NAME=dockeropt
 DB_USER=${CRED_POSTGRES_USER}
 DB_PASSWORD=${CRED_POSTGRES_PASSWORD}
-DATABASE_URL=postgres://${CRED_POSTGRES_USER}:${CRED_POSTGRES_PASSWORD}@${CRED_POSTGRES_HOST}:${CRED_POSTGRES_PORT}/dockeropt
+DATABASE_URL=postgres://${CRED_POSTGRES_USER}:${CRED_POSTGRES_PASSWORD}@${CLEAN_HOST}:${CRED_POSTGRES_PORT}/dockeropt
 DB_POOL_MAX=10
 
 ADMIN_EMAIL=${CRED_ADMIN_EMAIL}
@@ -103,98 +106,5 @@ EOF
             chmod 600 .env
             echo "Fichier .env généré avec succès."
         '''
-    }
-}
-
-pipeline {
-    agent any
-
-    environment {
-        COMPOSE_PROJECT_NAME = 'dockeropt'
-        DOCKER_BUILDKIT = '1'
-        COMPOSE_DOCKER_CLI_BUILD = '1'
-    }
-
-    stages {
-        stage('Phase 1 : Checkout') {
-            steps {
-                echo "Récupération du code source..."
-                checkout scm
-            }
-        }
-
-        stage('Phase 2 : Environment Setup') {
-            steps {
-                echo "Création du fichier d'environnement .env..."
-                script {
-                    createEnvFile()
-                }
-            }
-        }
-
-        stage('Phase 3 : Validate Docker Config') {
-            steps {
-                echo "Validation de la configuration Docker Compose..."
-                sh 'docker compose --env-file .env config -q'
-            }
-        }
-
-        stage('Phase 4 : Fast Build') {
-            steps {
-                echo "Build rapide des images Docker (mode parallèle et utilisation du cache)..."
-                sh 'docker compose --env-file .env build --parallel'
-            }
-        }
-
-        stage('Phase 5 : Deploy Services') {
-            steps {
-                echo "Démarrage des conteneurs en arrière-plan..."
-                sh 'docker compose --env-file .env up -d --remove-orphans'
-            }
-        }
-
-        stage('Phase 6 : Verify Containers') {
-            steps {
-                echo "Vérification de l'état des services..."
-                sh '''
-                    set -e
-                    echo "=== ETAT DES SERVICES ==="
-                    docker compose --env-file .env ps
-                    
-                    echo ""
-                    echo "=== CONTENEURS EN COURS D'EXECUTION ==="
-                    docker ps --format "table {{.Names}}\\t{{.Status}}\\t{{.Ports}}"
-                '''
-            }
-        }
-    }
-
-    post {
-        success {
-            echo '''
-==========================================
-  DockerOpt Deployment: SUCCESS
-==========================================
-'''
-        }
-
-        failure {
-            echo '''
-==========================================
-  DockerOpt Deployment: FAILED
-==========================================
-'''
-            sh '''
-                echo "--- DIAGNOSTIC DES LOGS EN CAS D'ERREUR ---"
-                docker logs dockeropt_backend --tail 50 || true
-            '''
-        }
-
-        always {
-            sh '''
-                echo "Nettoyage du fichier de secrets .env..."
-                rm -f .env .env.jenkins || true
-            '''
-        }
     }
 }
