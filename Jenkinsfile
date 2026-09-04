@@ -13,12 +13,11 @@ def createEnvFile() {
         string(credentialsId: 'DOCKEROPT_ALERT_EMAIL_ID', variable: 'CRED_ALERT_EMAIL')
     ]) {
         sh '''
-            set +x
-            echo "Nettoyage du nom d'hôte PostgreSQL..."
-            # Supprime http://, https:// et d'éventuels slashes résiduels
+            set -x
+            echo "--> Nettoyage du nom d'hôte PostgreSQL..."
             CLEAN_HOST=$(echo "${CRED_POSTGRES_HOST_RAW}" | sed -e 's|^https://||' -e 's|^http://||' -e 's|/.*||')
 
-            echo "Génération du fichier .env temporaire (DB Host cible : ${CLEAN_HOST})..."
+            echo "--> Génération du fichier .env temporaire (DB Host : ${CLEAN_HOST})..."
 
             cat <<EOF > .env
 POSTGRES_HOST=${CLEAN_HOST}
@@ -105,7 +104,7 @@ NODE_EXPORTER_CONTAINER_NAME=dockeropt_node_exporter
 NODE_EXPORTER_PORT=9100
 EOF
             chmod 600 .env
-            echo "Fichier .env généré avec succès."
+            echo "--> Fichier .env prêt !"
         '''
     }
 }
@@ -120,53 +119,52 @@ pipeline {
     }
 
     stages {
-        stage('Phase 1 : Checkout') {
+        stage('Checkout') {
             steps {
-                echo "Récupération du code source depuis Git..."
-                checkout scm
+                script {
+                    echo "=== [PHASE 1] Récupération du dépôt Git ==="
+                    checkout scm
+                }
             }
         }
 
-        stage('Phase 2 : Environment Setup') {
+        stage('Environment Setup') {
             steps {
-                echo "Création du fichier d'environnement .env..."
                 script {
+                    echo "=== [PHASE 2] Création de la configuration .env ==="
                     createEnvFile()
                 }
             }
         }
 
-        stage('Phase 3 : Validate Docker Config') {
+        stage('Validate Docker Config') {
             steps {
-                echo "Validation de la configuration Docker Compose..."
-                sh 'docker compose --env-file .env config -q'
+                echo "=== [PHASE 3] Validation syntaxique de Docker Compose ==="
+                sh 'docker compose --env-file .env config'
             }
         }
 
-        stage('Phase 4 : Fast Build') {
+        stage('Build Docker Images') {
             steps {
-                echo "Build des images Docker en mode parallèle..."
-                sh 'docker compose --env-file .env build --parallel'
+                echo "=== [PHASE 4] Construction des images Docker ==="
+                sh 'docker compose --env-file .env build'
             }
         }
 
-        stage('Phase 5 : Deploy Services') {
+        stage('Deploy Services') {
             steps {
-                echo "Démarrage et mise à jour des conteneurs..."
+                echo "=== [PHASE 5] Lancement des conteneurs ==="
                 sh 'docker compose --env-file .env up -d --remove-orphans'
             }
         }
 
-        stage('Phase 6 : Verify Containers') {
+        stage('Verify Containers') {
             steps {
-                echo "Vérification du statut des services déployés..."
+                echo "=== [PHASE 6] Vérification des services et conteneurs actifs ==="
                 sh '''
-                    set -e
-                    echo "=== ÉTAT DES SERVICES DOCKER COMPOSE ==="
+                    echo "--- Statut des services ---"
                     docker compose --env-file .env ps
-                    
-                    echo ""
-                    echo "=== CONTENEURS ACTIFS ET PORTS ASOCIÉS ==="
+                    echo "--- Conteneurs en cours d'exécution ---"
                     docker ps --format "table {{.Names}}\\t{{.Status}}\\t{{.Ports}}"
                 '''
             }
@@ -175,30 +173,20 @@ pipeline {
 
     post {
         success {
-            echo '''
-==========================================
-  DockerOpt Deployment: SUCCESS !
-==========================================
-'''
+            echo '==========================================='
+            echo '   DEPLOIEMENT DOCKEROPT : SUCCES !'
+            echo '==========================================='
         }
 
         failure {
-            echo '''
-==========================================
-  DockerOpt Deployment: FAILED !
-==========================================
-'''
-            sh '''
-                echo "--- ERREUR DÉTECTÉE : EXTRAIT DES LOGS DU BACKEND ---"
-                docker logs dockeropt_backend --tail 50 || true
-            '''
+            echo '==========================================='
+            echo '   DEPLOIEMENT DOCKEROPT : ECHEC !'
+            echo '==========================================='
+            sh 'docker logs dockeropt_backend --tail 50 || true'
         }
 
         always {
-            sh '''
-                echo "Suppression sécurisée des fichiers temporaires .env..."
-                rm -f .env .env.jenkins || true
-            '''
+            sh 'rm -f .env .env.jenkins || true'
         }
     }
 }
