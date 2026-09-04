@@ -169,7 +169,7 @@ services:
     command:
       - '--housekeeping_interval=10s'
       - '--docker_only=true'
-      - '--disable_metrics=percpu,sched,tcp,udp,disk,diskIO'
+      - '--disable_metrics=advtcp,process,percpu,sched,tcp,udp,disk,diskIO'
     networks:
       - dockeropt-network
 
