@@ -1,27 +1,50 @@
-def createEnvFile() {
-    withCredentials([
-        string(credentialsId: 'POSTGRES_HOST_ID', variable: 'CRED_POSTGRES_HOST_RAW'),
-        string(credentialsId: 'POSTGRES_PORT_ID', variable: 'CRED_POSTGRES_PORT'),
-        string(credentialsId: 'POSTGRES_USER_ID', variable: 'CRED_POSTGRES_USER'),
-        string(credentialsId: 'POSTGRES_PASSWORD_ID', variable: 'CRED_POSTGRES_PASSWORD'),
-        string(credentialsId: 'DOCKEROPT_ADMIN_EMAIL_ID', variable: 'CRED_ADMIN_EMAIL'),
-        string(credentialsId: 'DOCKEROPT_ADMIN_PASSWORD_ID', variable: 'CRED_ADMIN_PASSWORD'),
-        string(credentialsId: 'DOCKEROPT_JWT_SECRET_ID', variable: 'CRED_JWT_SECRET'),
-        string(credentialsId: 'DOCKEROPT_SMTP_USER_ID', variable: 'CRED_SMTP_USER'),
-        string(credentialsId: 'DOCKEROPT_SMTP_PASSWORD_ID', variable: 'CRED_SMTP_PASSWORD'),
-        string(credentialsId: 'DOCKEROPT_SMTP_FROM_ID', variable: 'CRED_SMTP_FROM'),
-        string(credentialsId: 'DOCKEROPT_ALERT_EMAIL_ID', variable: 'CRED_ALERT_EMAIL')
-    ]) {
-        sh label: 'Generation des fichiers .env et prometheus.yml', script: '''
-            set -x
-            CLEAN_HOST=$(echo "${CRED_POSTGRES_HOST_RAW}" | sed -e 's|^https://||' -e 's|^http://||' -e 's|/.*||')
+pipeline {
+    agent any
 
-            # 1. SUPPRESSION FORCÉE : Supprime le répertoire parasite crée par Docker s'il existe
-            rm -rf "${WORKSPACE}/prometheus.yml"
-            rm -f "${WORKSPACE}/.env"
+    environment {
+        COMPOSE_PROJECT_NAME = 'dockeropt'
+        DOCKER_BUILDKIT = '1'
+        COMPOSE_DOCKER_CLI_BUILD = '1'
+    }
 
-            # 2. CRÉATION DU FICHIER prometheus.yml EN TANT QUE FICHIER TEXTE
-            cat <<'EOF' > "${WORKSPACE}/prometheus.yml"
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Nettoyage Pre-build') {
+            steps {
+                sh label: 'Clean Workspace Files', script: '''
+                    # Nettoyage complet des reliquats
+                    rm -rf "${WORKSPACE}/prometheus.yml"
+                    rm -f "${WORKSPACE}/.env"
+                '''
+            }
+        }
+
+        stage('Génération Configuration') {
+            steps {
+                withCredentials([
+                    string(credentialsId: 'POSTGRES_HOST_ID', variable: 'CRED_POSTGRES_HOST_RAW'),
+                    string(credentialsId: 'POSTGRES_PORT_ID', variable: 'CRED_POSTGRES_PORT'),
+                    string(credentialsId: 'POSTGRES_USER_ID', variable: 'CRED_POSTGRES_USER'),
+                    string(credentialsId: 'POSTGRES_PASSWORD_ID', variable: 'CRED_POSTGRES_PASSWORD'),
+                    string(credentialsId: 'DOCKEROPT_ADMIN_EMAIL_ID', variable: 'CRED_ADMIN_EMAIL'),
+                    string(credentialsId: 'DOCKEROPT_ADMIN_PASSWORD_ID', variable: 'CRED_ADMIN_PASSWORD'),
+                    string(credentialsId: 'DOCKEROPT_JWT_SECRET_ID', variable: 'CRED_JWT_SECRET'),
+                    string(credentialsId: 'DOCKEROPT_SMTP_USER_ID', variable: 'CRED_SMTP_USER'),
+                    string(credentialsId: 'DOCKEROPT_SMTP_PASSWORD_ID', variable: 'CRED_SMTP_PASSWORD'),
+                    string(credentialsId: 'DOCKEROPT_SMTP_FROM_ID', variable: 'CRED_SMTP_FROM'),
+                    string(credentialsId: 'DOCKEROPT_ALERT_EMAIL_ID', variable: 'CRED_ALERT_EMAIL')
+                ]) {
+                    sh label: 'Création des fichiers .env et prometheus.yml', script: '''
+                        set -x
+                        CLEAN_HOST=$(echo "${CRED_POSTGRES_HOST_RAW}" | sed -e 's|^https://||' -e 's|^http://||' -e 's|/.*||')
+
+                        # 1. Création de prometheus.yml
+                        cat <<'EOF' > "${WORKSPACE}/prometheus.yml"
 global:
   scrape_interval: 5s
   evaluation_interval: 5s
@@ -40,8 +63,8 @@ scrape_configs:
       - targets: ['cadvisor:8080']
 EOF
 
-            # 3. CRÉATION DU FICHIER .env
-            cat <<EOF > "${WORKSPACE}/.env"
+                        # 2. Création de .env
+                        cat <<EOF > "${WORKSPACE}/.env"
 POSTGRES_HOST=${CLEAN_HOST}
 POSTGRES_PORT=${CRED_POSTGRES_PORT}
 POSTGRES_USER=${CRED_POSTGRES_USER}
@@ -125,70 +148,35 @@ NODE_EXPORTER_IMAGE=prom/node-exporter:latest
 NODE_EXPORTER_CONTAINER_NAME=dockeropt_node_exporter
 NODE_EXPORTER_PORT=9100
 EOF
-            chmod 644 "${WORKSPACE}/prometheus.yml"
-            chmod 600 "${WORKSPACE}/.env"
-
-            # Vérification dans les logs Jenkins pour confirmer que c'est bien un fichier
-            ls -la "${WORKSPACE}/prometheus.yml"
-        '''
-    }
-}
-
-pipeline {
-    agent any
-
-    environment {
-        COMPOSE_PROJECT_NAME = 'dockeropt'
-        DOCKER_BUILDKIT = '1'
-        COMPOSE_DOCKER_CLI_BUILD = '1'
-    }
-
-    stages {
-        stage('Checkout') {
-            steps {
-                checkout scm
-            }
-        }
-
-        stage('Nettoyage Pre-build') {
-            steps {
-                // Arrêt des conteneurs et suppression du dossier parasite avant la génération
-                sh label: 'Clean Environment', script: '''
-                    docker compose down --remove-orphans || true
-                    rm -rf "${WORKSPACE}/prometheus.yml"
-                '''
-            }
-        }
-
-        stage('Configuration') {
-            steps {
-                script {
-                    createEnvFile()
+                        chmod 644 "${WORKSPACE}/prometheus.yml"
+                        chmod 600 "${WORKSPACE}/.env"
+                        ls -la "${WORKSPACE}/.env" "${WORKSPACE}/prometheus.yml"
+                    '''
                 }
             }
         }
 
-        stage('Validation Configuration') {
+        stage('Validation Compose') {
             steps {
-                sh label: 'Verification compose', script: 'docker compose --env-file .env config'
+                sh label: 'Vérification syntaxe docker compose', script: 'docker compose --env-file .env config'
             }
         }
 
-        stage('Build') {
+        stage('Build Images') {
             steps {
-                sh label: 'Build des images', script: 'docker compose --env-file .env build'
+                sh label: 'Build des conteneurs', script: 'docker compose --env-file .env build'
             }
         }
 
         stage('Deploy') {
             steps {
-                sh label: 'Demarrage des conteneurs', script: 'docker compose --env-file .env up -d --force-recreate --remove-orphans'
+                sh label: 'Déploiement des services', script: 'docker compose --env-file .env up -d --force-recreate --remove-orphans'
             }
         }
 
         stage('Health Check') {
             steps {
-                sh label: 'Verification statut', script: '''
+                sh label: 'Vérification de l\'état des conteneurs', script: '''
                     sleep 5
                     docker compose --env-file .env ps
                 '''
@@ -198,16 +186,14 @@ pipeline {
 
     post {
         failure {
-            sh label: 'Recuperation des logs en cas d erreur', script: '''
+            sh label: 'Recupération des logs', script: '''
                 if [ -f .env ]; then
                     docker compose --env-file .env logs --tail=100 || true
-                else
-                    docker logs dockeropt_prometheus || true
                 fi
             '''
         }
         always {
-            sh label: 'Nettoyage des fichiers temporaires', script: 'rm -f .env prometheus.yml || true'
+            sh label: 'Nettoyage final', script: 'rm -f .env prometheus.yml || true'
         }
     }
 }
