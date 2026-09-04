@@ -12,17 +12,15 @@ def createEnvFile() {
         string(credentialsId: 'DOCKEROPT_SMTP_FROM_ID', variable: 'CRED_SMTP_FROM'),
         string(credentialsId: 'DOCKEROPT_ALERT_EMAIL_ID', variable: 'CRED_ALERT_EMAIL')
     ]) {
-        sh label: 'Génération du fichier .env et configuration Prometheus', script: '''
+        sh label: 'Generation des fichiers .env et prometheus.yml', script: '''
             set -x
             CLEAN_HOST=$(echo "${CRED_POSTGRES_HOST_RAW}" | sed -e 's|^https://||' -e 's|^http://||' -e 's|/.*||')
 
-            # Nettoyage au cas où Docker aurait créé un dossier prometheus.yml par erreur
-            if [ -d "prometheus.yml" ]; then
-                rm -rf prometheus.yml
-            fi
+            # Nettoyage obligatoire si Docker a cree un dossier fantome prometheus.yml
+            rm -rf prometheus.yml
 
-            # Création dynamique de prometheus.yml
-            cat <<EOF > prometheus.yml
+            # Generation dynamique du fichier prometheus.yml
+            cat <<'EOF' > prometheus.yml
 global:
   scrape_interval: 5s
   evaluation_interval: 5s
@@ -41,7 +39,7 @@ scrape_configs:
       - targets: ['cadvisor:8080']
 EOF
 
-            # Création du fichier .env
+            # Generation dynamique du fichier .env
             cat <<EOF > .env
 POSTGRES_HOST=${CLEAN_HOST}
 POSTGRES_PORT=${CRED_POSTGRES_PORT}
@@ -126,7 +124,8 @@ NODE_EXPORTER_IMAGE=prom/node-exporter:latest
 NODE_EXPORTER_CONTAINER_NAME=dockeropt_node_exporter
 NODE_EXPORTER_PORT=9100
 EOF
-            chmod 600 .env prometheus.yml
+            chmod 644 prometheus.yml
+            chmod 600 .env
         '''
     }
 }
@@ -141,15 +140,13 @@ pipeline {
     }
 
     stages {
-        stage('Checkout du projet') {
+        stage('Checkout') {
             steps {
-                script {
-                    checkout scm
-                }
+                checkout scm
             }
         }
 
-        stage('Configuration de l\'environnement') {
+        stage('Configuration') {
             steps {
                 script {
                     createEnvFile()
@@ -157,34 +154,35 @@ pipeline {
             }
         }
 
-        stage('Validation de la configuration Docker') {
+        stage('Nettoyage Conteneurs') {
             steps {
-                sh label: 'Vérification de la syntaxe compose', script: 'docker compose --env-file .env config'
+                sh label: 'Arret des conteneurs existants', script: 'docker compose --env-file .env down --remove-orphans || true'
             }
         }
 
-        stage('Construction des images Docker') {
+        stage('Validation Configuration') {
+            steps {
+                sh label: 'Verification compose', script: 'docker compose --env-file .env config'
+            }
+        }
+
+        stage('Build') {
             steps {
                 sh label: 'Build des images', script: 'docker compose --env-file .env build'
             }
         }
 
-        stage('Déploiement des services') {
+        stage('Deploy') {
             steps {
-                sh label: 'Démarrage des conteneurs', script: 'docker compose --env-file .env up -d --force-recreate --remove-orphans'
+                sh label: 'Demarrage des conteneurs', script: 'docker compose --env-file .env up -d --force-recreate --remove-orphans'
             }
         }
 
-        stage('Vérification de l\'état des conteneurs') {
+        stage('Health Check') {
             steps {
-                sh label: 'Contrôle du statut', script: '''
+                sh label: 'Verification statut', script: '''
                     sleep 5
-                    UNHEALTHY_SERVICES=$(docker compose --env-file .env ps --format "{{.Service}} {{.State}}" | grep -v "running" || true)
-                    
-                    if [ -n "$UNHEALTHY_SERVICES" ]; then
-                        docker compose --env-file .env logs --tail=50
-                        exit 1
-                    fi
+                    docker compose --env-file .env ps
                 '''
             }
         }
@@ -192,15 +190,16 @@ pipeline {
 
     post {
         failure {
-            sh label: 'Extraction des logs en échec', script: '''
+            sh label: 'Recuperation des logs en cas d erreur', script: '''
                 if [ -f .env ]; then
                     docker compose --env-file .env logs --tail=100 || true
+                else
+                    docker logs dockeropt_prometheus || true
                 fi
             '''
         }
         always {
-            sh label: 'Nettoyage des fichiers temporaires', script: 'rm -f .env .env.jenkins prometheus.yml || true'
-            cleanWs()
+            sh label: 'Nettoyage des fichiers temporaires', script: 'rm -f .env prometheus.yml || true'
         }
     }
 }

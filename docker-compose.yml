@@ -11,7 +11,7 @@ volumes:
     name: ${PROMETHEUS_DATA_VOLUME}
 
 services:
-  # --- APPLICATION FRONTEND ---
+  # --- FRONTEND ---
   frontend:
     build:
       context: ${DOCKEROPT_FRONTEND_BUILD}
@@ -29,7 +29,7 @@ services:
     networks:
       - dockeropt-network
 
-  # --- APPLICATION BACKEND ---
+  # --- BACKEND ---
   backend:
     build:
       context: ${DOCKEROPT_BACKEND_BUILD}
@@ -173,7 +173,10 @@ services:
     ports:
       - "${PROMETHEUS_PORT}:${PROMETHEUS_PORT}"
     volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - type: bind
+        source: ./prometheus.yml
+        target: /etc/prometheus/prometheus.yml
+        read_only: true
       - prometheus-data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
