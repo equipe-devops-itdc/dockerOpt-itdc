@@ -1,3 +1,5 @@
+version: '3.8'
+
 networks:
   dockeropt-network:
     name: ${DOCKEROPT_NETWORK_NAME}
@@ -69,7 +71,7 @@ services:
     networks:
       dockeropt-network:
         aliases:
-          - backend # Fixe la résolution de nom pour le Nginx du Frontend
+          - backend
 
   # --- PHASE 3 : MICROSERVICES & API GATEWAY ---
   api-gateway:
@@ -153,14 +155,21 @@ services:
     image: ${CADVISOR_IMAGE}
     container_name: ${CADVISOR_CONTAINER_NAME}
     restart: always
+    privileged: true
+    devices:
+      - /dev/kmsg
     ports:
-      - "${CADVISOR_HOST_PORT}:${CADVISOR_HOST_PORT}"
+      - "${CADVISOR_HOST_PORT}:8080"
     volumes:
-      - /:/rootfs:ro
-      - /var/run:/var/run:ro
-      - /sys:/sys:ro
-      - /var/lib/docker/:/var/lib/docker:ro
-      - /dev/disk/:/dev/disk:ro
+      - /:/rootfs:ro,z
+      - /var/run:/var/run:ro,z
+      - /sys:/sys:ro,z
+      - /var/lib/docker/:/var/lib/docker:ro,z
+      - /dev/disk/:/dev/disk:ro,z
+    command:
+      - '--housekeeping_interval=10s'
+      - '--docker_only=true'
+      - '--disable_metrics=percpu,sched,tcp,udp,disk,diskIO'
     networks:
       - dockeropt-network
 
@@ -183,7 +192,17 @@ services:
     image: ${NODE_EXPORTER_IMAGE}
     container_name: ${NODE_EXPORTER_CONTAINER_NAME}
     restart: always
+    pid: host
     ports:
       - "${NODE_EXPORTER_PORT}:${NODE_EXPORTER_PORT}"
+    volumes:
+      - /proc:/host/proc:ro,z
+      - /sys:/host/sys:ro,z
+      - /:/rootfs:ro,z
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
     networks:
       - dockeropt-network
