@@ -240,7 +240,7 @@ function InitialLoad() {
   return (
     <div className="h-full min-h-[60vh] flex flex-col items-center justify-center gap-3 text-text-faint">
       <div className="h-8 w-8 rounded-full border-2 border-ink-500 border-t-signal-accent animate-spin" />
-      <p className="text-sm">Connexion à la plateforme DockerOpt…</p>
+      
     </div>
   )
 }
