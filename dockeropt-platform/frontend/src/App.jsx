@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 
-export const Global3DBackground: React.FC = () => {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+export const Global3DBackground = () => {
+  const canvasRef = useRef(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -9,7 +9,7 @@ export const Global3DBackground: React.FC = () => {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    let animId: number;
+    let animId;
     let width = (canvas.width = window.innerWidth);
     let height = (canvas.height = window.innerHeight);
 
@@ -22,7 +22,7 @@ export const Global3DBackground: React.FC = () => {
     let step = 0;
 
     // Projection 3D vers 2D
-    const project3D = (x3d: number, y3d: number, z3d: number) => {
+    const project3D = (x3d, y3d, z3d) => {
       const fov = 350;
       const cameraZ = 400;
       const scale = fov / (fov + z3d + cameraZ);
@@ -47,7 +47,7 @@ export const Global3DBackground: React.FC = () => {
       const baseColor = isLight ? '5, 150, 105' : '45, 212, 191';
 
       // Calcul des points 3D projetés
-      const grid: { x: number; y: number; scale: number }[][] = [];
+      const grid = [];
 
       for (let r = 0; r < rows; r++) {
         grid[r] = [];
@@ -55,7 +55,7 @@ export const Global3DBackground: React.FC = () => {
           const x3d = (c - cols / 2) * spacingX;
           const z3d = r * spacingZ;
           
-          // Calcul de la vague 3D
+          // Calcul de l'onde 3D
           const distance = Math.sqrt(x3d * x3d + z3d * z3d) * 0.005;
           const y3d = Math.sin(step - distance + r * 0.15) * 45 + Math.cos(step + c * 0.1) * 20;
 
@@ -65,7 +65,7 @@ export const Global3DBackground: React.FC = () => {
 
       ctx.lineWidth = 1;
 
-      // Tracé des lignes horizontales
+      // Lignes horizontales
       for (let r = 0; r < rows; r++) {
         ctx.beginPath();
         for (let c = 0; c < cols; c++) {
@@ -78,7 +78,7 @@ export const Global3DBackground: React.FC = () => {
         ctx.stroke();
       }
 
-      // Tracé des lignes verticales pour former le maillage 3D
+      // Lignes verticales (maillage 3D)
       for (let c = 0; c < cols; c++) {
         ctx.beginPath();
         for (let r = 0; r < rows; r++) {
