@@ -23,7 +23,7 @@
     --bg-anim-opacity-grid: 0.55;
     --bg-anim-opacity-glow: 0.6;
     
-    /* Variables dynamiques pour le formulaire */
+    /* Variables dynamiques pour les cartes et formulaires */
     --card-bg: rgba(13, 20, 23, 0.72);
     --card-gradient: linear-gradient(145deg, rgba(255,255,255,.055), rgba(255,255,255,.018));
     --card-shadow: 0 30px 90px -38px rgba(0,0,0,.95), 0 0 0 1px rgba(45,212,191,.025) inset, 0 0 70px -38px rgba(45,212,191,.35);
@@ -51,7 +51,7 @@
     --bg-anim-opacity-grid: 0.6;
     --bg-anim-opacity-glow: 0.5;
 
-    /* Override clair pour le formulaire */
+    /* Override clair */
     --card-bg: rgba(255, 255, 255, 0.85);
     --card-gradient: linear-gradient(145deg, rgba(255,255,255,0.9), rgba(241,245,249,0.7));
     --card-shadow: 0 20px 50px -12px rgba(15,23,42,0.12), 0 0 0 1px rgba(5,150,105,0.1) inset;
@@ -61,57 +61,81 @@
 
   html { color-scheme: dark; }
   html.light { color-scheme: light; }
+
+  /* =========================================================
+     Animation 3D globale pour toute l'application (Body)
+     ========================================================= */
   body {
-    @apply bg-ink-900 text-text font-body antialiased;
+    @apply bg-ink-950 text-text font-body antialiased;
     position: relative;
+    min-height: 100vh;
+    overflow-x: hidden;
     transition: background-color 0.2s ease, color 0.2s ease;
+    background:
+      radial-gradient(900px 650px at 78% 42%, rgb(var(--accent) / 0.08), transparent 62%),
+      radial-gradient(700px 520px at 18% 80%, rgba(76,141,255,.08), transparent 65%),
+      rgb(var(--ink-950));
   }
 
-  body::before, body::after {
+  /* Grille 3D défilante sur tout le site */
+  body::before {
     content: '';
     position: fixed;
     inset: 0;
     pointer-events: none;
     z-index: 0;
-  }
-  body::before {
-    background-image:
-      linear-gradient(var(--grid-line) 1px, transparent 1px),
-      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
-    background-size: 42px 42px;
     opacity: var(--bg-anim-opacity-grid);
-    animation: gridDrift 60s linear infinite;
-    mask-image: radial-gradient(1200px 800px at 50% 0%, black, transparent 75%);
+    background-image:
+      linear-gradient(rgb(var(--accent) / 0.045) 1px, transparent 1px),
+      linear-gradient(90deg, rgb(var(--accent) / 0.045) 1px, transparent 1px);
+    background-size: 46px 46px;
+    mask-image: radial-gradient(ellipse 80% 90% at 50% 50%, #000 0%, transparent 80%);
+    animation: globalGridMove 32s linear infinite;
   }
 
+  /* Lueur ambiante dynamique sur tout le site */
   body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
     background:
       radial-gradient(650px 320px at 12% 12%, var(--scan-1), transparent 60%),
       radial-gradient(550px 280px at 88% 75%, var(--scan-2), transparent 60%);
     opacity: var(--bg-anim-opacity-glow);
-    animation: glowDrift 18s ease-in-out infinite;
-    filter: blur(6px);
+    animation: globalGlowDrift 18s ease-in-out infinite;
+    filter: blur(8px);
   }
 
-  #root { position: relative; z-index: 1; }
+  #root { 
+    position: relative; 
+    z-index: 1; 
+  }
 
-  @keyframes gridDrift {
+  @keyframes globalGridMove {
     from { background-position: 0 0, 0 0; }
-    to { background-position: 84px 84px, 84px 84px; }
+    to { background-position: 92px 92px, 92px 92px; }
   }
-  @keyframes glowDrift {
+
+  @keyframes globalGlowDrift {
     0%, 100% { transform: translate(0, 0) scale(1); }
-    50% { transform: translate(3%, -2%) scale(1.06); }
+    50% { transform: translate(2%, -2%) scale(1.05); }
   }
 }
 
 @layer components {
   .panel {
-    @apply bg-ink-800/55 border border-ink-500 rounded-xl backdrop-blur-md relative;
+    @apply border border-ink-500 rounded-xl backdrop-blur-md relative;
+    background: var(--card-gradient), var(--card-bg);
     box-shadow: var(--panel-shadow);
+    transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
   }
+
   .input {
-    @apply w-full bg-ink-950 border border-ink-500 rounded-lg px-3 py-2 text-sm text-text placeholder:text-text-faint focus:outline-none focus:border-signal-accent/50 transition-colors;
+    @apply w-full border border-ink-500 rounded-lg px-3 py-2 text-sm text-text placeholder:text-text-faint focus:outline-none focus:border-signal-accent/50 transition-colors;
+    background: var(--input-bg);
+    border-color: var(--input-border);
   }
 }
 
@@ -128,24 +152,6 @@
   display: flex;
   align-items: center;
   isolation: isolate;
-  background:
-    radial-gradient(900px 650px at 78% 42%, rgb(var(--accent) / 0.10), transparent 62%),
-    radial-gradient(700px 520px at 18% 80%, rgba(76,141,255,.10), transparent 65%),
-    rgb(var(--ink-950));
-  transition: background-color 0.2s ease;
-}
-
-.login-grid-glow {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  opacity: .55;
-  background-image:
-    linear-gradient(rgb(var(--accent) / 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgb(var(--accent) / 0.05) 1px, transparent 1px);
-  background-size: 46px 46px;
-  mask-image: radial-gradient(ellipse 80% 90% at 72% 50%, #000 0%, transparent 76%);
-  animation: loginGridMove 32s linear infinite;
 }
 
 .login-layout {
@@ -246,7 +252,7 @@
   background: rgb(var(--accent));
 }
 
-/* -------- Conteneur Canvas de la vague MinIO -------- */
+/* -------- Canvas Vague 3D MinIO -------- */
 
 .devops-stage {
   min-width: 0; height: 100%; display: flex; flex-direction: column; justify-content: center; position: relative;
@@ -273,7 +279,6 @@
 .devops-stats strong { color: rgb(var(--text)); font: 700 9px ui-monospace, monospace; display: block; }
 .devops-stats span { color: rgb(var(--text-faint)); font-size: 9px; display: block; margin-top: 3px; }
 
-@keyframes loginGridMove { to { background-position: 92px 92px; } }
 @keyframes loginCardIn {
   from { opacity: 0; transform: translateY(24px); }
   to { opacity: 1; transform: translateY(0); }
