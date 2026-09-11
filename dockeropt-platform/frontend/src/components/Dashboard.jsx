@@ -35,7 +35,7 @@ export default function Dashboard({ system, containers, recommendations, network
     <div>
       <PageHeader
         hero
-        title="Supervision et Optimisation des Ressources"
+        title=""
         description="Architectures microservices déployées sous Docker — analyse en temps réel."
       />
 
