@@ -74,13 +74,6 @@ scrape_configs:
           service: 'notification-service'
           app: 'dockeropt'
 
-  # Auto-découverte Docker — permet à toute NOUVELLE application microservice
-  # d'être supervisée sans modifier ce fichier : il suffit d'ajouter au
-  # conteneur les labels suivants (voir panneau "Connecter un service" dans
-  # l'interface DockerOpt) :
-  #   prometheus.enable=true         → active la découverte
-  #   prometheus.io/port=<port>      → port qui expose /metrics (def: 9100)
-  #   prometheus.io/path=<chemin>    → chemin des métriques (def: /metrics)
   - job_name: 'docker'
     scrape_interval: 15s
     docker_sd_configs:

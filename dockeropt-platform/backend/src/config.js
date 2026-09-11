@@ -54,7 +54,7 @@ const SMTP_PASSWORD = process.env.SMTP_PASSWORD;
 const SMTP_FROM = process.env.SMTP_FROM || 'DockerOpt <alerts@dockeropt.local>';
 const ALERT_EMAIL_TO = process.env.ALERT_EMAIL_TO || ADMIN_EMAIL;
 const ALERT_CHECK_INTERVAL_MS = Number(process.env.ALERT_CHECK_INTERVAL_MS || 15000);
-const PLATFORM_URL = process.env.PLATFORM_URL || 'http://localhost:8080';
+const PLATFORM_URL = process.env.PLATFORM_URL || 'http://localhost:3000';
 
 module.exports = {
   PORT, PROMETHEUS_URL, SERVICE_DISPLAY, METRICS_PREFIX,
