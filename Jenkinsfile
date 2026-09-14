@@ -41,15 +41,6 @@ pipeline {
                         set -x
                         CLEAN_HOST=$(echo "${CRED_POSTGRES_HOST_RAW}" | sed -e 's|^https://||' -e 's|^http://||' -e 's|/.*||')
 
-                        # Seul .env est généré ici (secrets Jenkins). La config
-                        # Prometheus vit exclusivement dans ./prometheus/
-                        # (versionnée avec le code, montée telle quelle par
-                        # docker-compose.yml).
-                        #
-                        # --- CONVENTION DE PORTS ---
-                        #   FRONTEND : 3000, 3001, 3002...
-                        #   BACKEND  : 5000, 5001, 5002...
-                        #   INFRA/MONITORING : ports standards (9090, 9100, 8081...)
                         cat <<EOF > "${WORKSPACE}/.env"
 POSTGRES_HOST=${CLEAN_HOST}
 POSTGRES_PORT=${CRED_POSTGRES_PORT}
@@ -158,6 +149,22 @@ EOF
 
         stage('Deploy') {
             steps {
+                sh label: 'Libération des ports avant déploiement', script: '''
+                    set -a
+                    . ./.env
+                    set +a
+                    for p in "$FRONTEND_HOST_PORT" "$BACKEND_HOST_PORT" \
+                             "$API_GATEWAY_PORT" "$USER_SERVICE_PORT" \
+                             "$PRODUCT_SERVICE_PORT" "$NOTIFICATION_SERVICE_PORT" \
+                             "$CADVISOR_HOST_PORT" "$PROMETHEUS_PORT" "$NODE_EXPORTER_PORT"; do
+                        [ -z "$p" ] && continue
+                        cids=$(docker ps -aq --filter "publish=$p")
+                        if [ -n "$cids" ]; then
+                            echo "Port $p occupé par un conteneur existant -> arrêt/suppression ($cids)"
+                            docker rm -f $cids || true
+                        fi
+                    done
+                '''
                 sh label: 'Déploiement des services', script: 'docker compose --env-file .env up -d --force-recreate --remove-orphans'
             }
         }
@@ -168,10 +175,6 @@ EOF
                     sleep 5
                     docker compose --env-file .env ps
                     echo "--- Prometheus ---"
-                    # Sonde directe : si Prometheus n'a pas pu charger sa
-                    # config (le bug corrigé dans docker-compose.yml), ce
-                    # health check échoue explicitement au lieu de laisser
-                    # découvrir le problème plus tard depuis le navigateur.
                     . ./.env 2>/dev/null || true
                     curl -sf "http://localhost:${PROMETHEUS_PORT:-9090}/-/healthy" \
                         && echo "Prometheus OK" \
