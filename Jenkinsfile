@@ -16,7 +16,6 @@ pipeline {
 
         stage('Nettoyage Pre-build') {
             steps {
-                
                 sh label: 'Clean Workspace Files', script: '''
                     rm -f "${WORKSPACE}/.env"
                 '''
@@ -42,15 +41,6 @@ pipeline {
                         set -x
                         CLEAN_HOST=$(echo "${CRED_POSTGRES_HOST_RAW}" | sed -e 's|^https://||' -e 's|^http://||' -e 's|/.*||')
 
-                        # Seul .env est généré ici (secrets Jenkins). La config
-                        # Prometheus vit exclusivement dans ./prometheus/
-                        # (versionnée avec le code, montée telle quelle par
-                        # docker-compose.yml).
-                        #
-                        # --- CONVENTION DE PORTS ---
-                        #   FRONTEND : 3000, 3001, 3002...
-                        #   BACKEND  : 5000, 5001, 5002...
-                        #   INFRA/MONITORING : ports standards (9090, 9100, 8081...)
                         cat <<EOF > "${WORKSPACE}/.env"
 POSTGRES_HOST=${CLEAN_HOST}
 POSTGRES_PORT=${CRED_POSTGRES_PORT}
@@ -160,7 +150,6 @@ EOF
         stage('Deploy') {
             steps {
                 sh label: 'Libération des ports avant déploiement', script: '''
-                   
                     get_env() {
                         grep -m1 "^$1=" .env | cut -d '=' -f2-
                     }
@@ -184,7 +173,6 @@ EOF
                             echo "Port $p occupé par un conteneur existant -> arrêt/suppression ($cids)"
                             docker rm -f $cids || true
                         else
-                            
                             if command -v fuser >/dev/null 2>&1; then
                                 if fuser "${p}/tcp" >/dev/null 2>&1; then
                                     echo "Port $p tenu par un process hors Docker -> tentative de libération (fuser)"
@@ -205,8 +193,6 @@ EOF
                     sleep 5
                     docker compose --env-file .env ps
                     echo "--- Prometheus ---"
-                    # Même correctif : extraction ciblée au lieu de sourcer
-                    # tout le fichier .env (voir étape Deploy ci-dessus).
                     PROMETHEUS_PORT=$(grep -m1 "^PROMETHEUS_PORT=" .env | cut -d '=' -f2-)
                     curl -sf "http://localhost:${PROMETHEUS_PORT:-9090}/-/healthy" \
                         && echo "Prometheus OK" \
