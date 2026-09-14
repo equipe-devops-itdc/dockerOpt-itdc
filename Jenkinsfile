@@ -16,12 +16,7 @@ pipeline {
 
         stage('Nettoyage Pre-build') {
             steps {
-                // On ne supprime plus prometheus.yml : ce fichier est
-                // désormais versionné dans le dépôt (./prometheus/) et ne
-                // doit JAMAIS être régénéré ni effacé par le pipeline —
-                // c'est justement ce qui causait Prometheus arrêté en
-                // dehors des builds Jenkins (voir docker-compose.yml).
-                // On ne régénère que .env, qui contient des secrets.
+                
                 sh label: 'Clean Workspace Files', script: '''
                     rm -f "${WORKSPACE}/.env"
                 '''
@@ -165,28 +160,7 @@ EOF
         stage('Deploy') {
             steps {
                 sh label: 'Libération des ports avant déploiement', script: '''
-                    # CORRECTIF : on ne "source" plus .env (`. ./.env`).
-                    # Ce fichier contient des valeurs avec espaces (ex: un
-                    # mot de passe d'application Gmail du type
-                    # "hrdu gxaf liba upeh"), non entourées de guillemets —
-                    # un `.`/`source` dessus n'est PAS un script shell
-                    # valide : bash essayait d'exécuter les mots après le
-                    # premier espace comme des commandes
-                    # ("gxaf : commande introuvable", exit code 127, build
-                    # en échec). On extrait donc uniquement les quelques
-                    # variables de port nécessaires ici, sans jamais
-                    # exécuter le reste du fichier.
-                    #
-                    # `--remove-orphans` ne nettoie que les conteneurs du
-                    # MÊME projet docker-compose. Un conteneur démarré à la
-                    # main (ex: scripts/start-all.sh, un test docker run
-                    # isolé, un ancien déploiement avec d'autres noms) sur
-                    # un des ports de l'app reste invisible pour compose et
-                    # fait échouer le déploiement avec "address already in
-                    # use" (cas déjà rencontré : port cAdvisor 8081 occupé
-                    # par un conteneur orphelin). On libère donc chaque
-                    # port utilisé par l'app, quel que soit le conteneur
-                    # qui le détient, juste avant de (re)créer les nôtres.
+                   
                     get_env() {
                         grep -m1 "^$1=" .env | cut -d '=' -f2-
                     }
@@ -209,6 +183,15 @@ EOF
                         if [ -n "$cids" ]; then
                             echo "Port $p occupé par un conteneur existant -> arrêt/suppression ($cids)"
                             docker rm -f $cids || true
+                        else
+                            
+                            if command -v fuser >/dev/null 2>&1; then
+                                if fuser "${p}/tcp" >/dev/null 2>&1; then
+                                    echo "Port $p tenu par un process hors Docker -> tentative de libération (fuser)"
+                                    fuser -k "${p}/tcp" 2>/dev/null || true
+                                    sleep 1
+                                fi
+                            fi
                         fi
                     done
                 '''
@@ -241,13 +224,5 @@ EOF
                 fi
             '''
         }
-        // IMPORTANT : on ne supprime plus .env ici. Les conteneurs restent
-        // déployés une fois le pipeline terminé ("déjà déployé"), et
-        // conserver .env dans le workspace permet de relancer des commandes
-        // `docker compose` directement sur le serveur (logs, ps, restart...)
-        // sans avoir besoin de redéclencher un build Jenkins juste pour
-        // régénérer ce fichier. Il est régénéré proprement au tout début du
-        // PROCHAIN build (étapes "Nettoyage Pre-build" + "Génération
-        // Configuration"), donc aucun risque de dérive entre deux builds.
     }
 }

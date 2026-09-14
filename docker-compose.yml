@@ -62,7 +62,7 @@ services:
       SMTP_FROM: ${SMTP_FROM}
       ALERT_EMAIL_TO: ${ALERT_EMAIL_TO}
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/run/docker.sock:/var/run/docker.sock:z
     networks:
       dockeropt-network:
         aliases:
@@ -194,6 +194,8 @@ services:
         source: /var/run/docker.sock
         target: /var/run/docker.sock
         read_only: true
+        bind:
+          selinux: z
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
