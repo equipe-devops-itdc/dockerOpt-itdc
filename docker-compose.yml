@@ -16,13 +16,15 @@ services:
     build:
       context: ${DOCKEROPT_FRONTEND_BUILD}
       dockerfile: Dockerfile
+      args:
+        VITE_API_BASE: ${DOCKEROPT_FRONTEND_API_URL}
     image: ${DOCKEROPT_FRONTEND_IMAGE}
     container_name: ${DOCKEROPT_FRONTEND_CONTAINER_NAME}
     restart: always
     ports:
       - "${FRONTEND_HOST_PORT}:80"
     environment:
-      REACT_APP_API_URL: ${DOCKEROPT_FRONTEND_API_URL}
+      BACKEND_UPSTREAM: http://backend:${BACKEND_HOST_PORT}
     depends_on:
       backend:
         condition: service_started
@@ -40,6 +42,7 @@ services:
     ports:
       - "${BACKEND_HOST_PORT}:${BACKEND_HOST_PORT}"
     environment:
+      PORT: ${BACKEND_HOST_PORT}
       DATABASE_URL: ${DATABASE_URL}
       DB_HOST: ${DB_HOST}
       DB_PORT: ${DB_PORT}
@@ -74,6 +77,7 @@ services:
     ports:
       - "${API_GATEWAY_PORT}:${API_GATEWAY_PORT}"
     environment:
+      PORT: ${API_GATEWAY_PORT}
       USER_SERVICE_URL: ${API_GATEWAY_USER_SERVICE_URL}
       PRODUCT_SERVICE_URL: ${API_GATEWAY_PRODUCT_SERVICE_URL}
       NOTIFICATION_SERVICE_URL: ${API_GATEWAY_NOTIFICATION_SERVICE_URL}
@@ -93,6 +97,7 @@ services:
     ports:
       - "${USER_SERVICE_PORT}:${USER_SERVICE_PORT}"
     environment:
+      PORT: ${USER_SERVICE_PORT}
       DB_HOST: ${DB_HOST}
       DB_PORT: ${DB_PORT}
       DB_NAME: ${DB_NAME}
@@ -114,6 +119,7 @@ services:
     ports:
       - "${PRODUCT_SERVICE_PORT}:${PRODUCT_SERVICE_PORT}"
     environment:
+      PORT: ${PRODUCT_SERVICE_PORT}
       DB_HOST: ${DB_HOST}
       DB_PORT: ${DB_PORT}
       DB_NAME: ${DB_NAME}
@@ -134,6 +140,8 @@ services:
     command: tail -f /dev/null
     ports:
       - "${NOTIFICATION_SERVICE_PORT}:${NOTIFICATION_SERVICE_PORT}"
+    environment:
+      PORT: ${NOTIFICATION_SERVICE_PORT}
     deploy:
       resources:
         limits:
@@ -174,8 +182,12 @@ services:
       - "${PROMETHEUS_PORT}:${PROMETHEUS_PORT}"
     volumes:
       - type: bind
-        source: ./prometheus.yml
+        source: ./prometheus/prometheus.yml
         target: /etc/prometheus/prometheus.yml
+        read_only: true
+      - type: bind
+        source: ./prometheus/alert.rules.yml
+        target: /etc/prometheus/alert.rules.yml
         read_only: true
       - prometheus-data:/prometheus
     command:

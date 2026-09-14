@@ -1,11 +1,16 @@
 
 import { api } from './api'
 
+// CORRECTIF (confusion scan / notifications) : ce store gère UNIQUEMENT le
+// scan de sécurité (audit de config + vulnérabilités Trivy), affiché sur la
+// page Sécurité. Il ne touche plus à aucune correction/auto-fix : le scan
+// est désormais un simple constat en temps réel, pour confirmer un
+// résultat, jamais une action qui modifie quoi que ce soit. Il n'alimente
+// non plus aucun compteur de notification — voir App.jsx / AlertsView.jsx,
+// où le badge de notifications ne dépend plus du tout de ce store.
 let state = {
   status: 'idle',       // idle | scanning | done | error
   entries: [],           // lignes du "terminal", ajoutées une à une
-  fixMessages: {},        // "container:findingId" -> message de correction
-  fixingKey: null,
   startedAt: null,
   finishedAt: null,
   error: null,
@@ -49,8 +54,6 @@ async function runScan() {
   setState({
     status: 'scanning',
     entries: [],
-    fixMessages: {},
-    fixingKey: null,
     startedAt: Date.now(),
     finishedAt: null,
     error: null,
@@ -135,18 +138,4 @@ async function runScan() {
   }
 }
 
-async function fixFinding(entry) {
-  const key = `${entry.container.name}:${entry.finding.id}`
-  setState({ fixingKey: key })
-  try {
-    const result = await api.securityAutoFix(entry.container.name, entry.finding.id, entry.container.host)
-    setState((s) => ({ fixMessages: { ...s.fixMessages, [key]: result.message }, fixingKey: null }))
-  } catch (e) {
-    setState((s) => ({
-      fixMessages: { ...s.fixMessages, [key]: e.message || 'Correction impossible' },
-      fixingKey: null,
-    }))
-  }
-}
-
-export const securityScanStore = { subscribe, getSnapshot, runScan, fixFinding }
+export const securityScanStore = { subscribe, getSnapshot, runScan }

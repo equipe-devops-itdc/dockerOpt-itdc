@@ -602,3 +602,136 @@ npm run dev        # proxy /api vers http://localhost:5000 par défaut
 ```bash
 docker compose up -d --build
 ```
+
+## 10. Correctif critique — Prometheus "toujours arrêté" en dehors des builds Jenkins
+
+**Avant** : `docker-compose.yml` montait `./prometheus.yml` (racine du
+projet) dans le conteneur Prometheus. Ce fichier n'était pas versionné :
+il était généré à la volée par le `Jenkinsfile` (étape "Génération
+Configuration") puis **supprimé** en fin de pipeline (`post { always { rm -f
+.env prometheus.yml } }`). Concrètement :
+- Pendant/juste après un build Jenkins, le fichier existait encore →
+  Prometheus démarrait normalement, le tableau de bord affichait bien les
+  données système (CPU/RAM/disque), tout semblait fonctionner.
+- En dehors d'un build Jenkins (le cas courant : "le projet est déjà
+  déployé, je veux juste tester"), dès que le conteneur Prometheus devait
+  être recréé (redémarrage du serveur, `docker compose up` relancé
+  manuellement...), Docker ne trouvait plus le fichier source du bind mount
+  et montait un **dossier vide** à la place → Prometheus plantait au
+  démarrage → plus aucune métrique système dans `/api/analysis/system`
+  (qui dépend entièrement de Prometheus/node-exporter, sans repli — voir
+  point 2 plus haut) → cartes CPU/RAM/disque bloquées sur `—`.
+
+**Après** :
+- `docker-compose.yml` monte désormais les fichiers **versionnés dans le
+  dépôt** (`./prometheus/prometheus.yml` et `./prometheus/alert.rules.yml`),
+  qui existent en permanence sur le serveur, que Jenkins tourne ou non.
+- Le `Jenkinsfile` ne génère plus aucun fichier Prometheus et ne le
+  supprime plus jamais.
+- Le `Jenkinsfile` ne supprime plus `.env` en fin de pipeline : une fois
+  déployé, le projet reste utilisable (y compris avec des commandes
+  `docker compose` lancées à la main sur le serveur) sans avoir besoin de
+  redéclencher un build Jenkins juste pour "réveiller" la configuration.
+- Une sonde `curl http://localhost:9090/-/healthy` a été ajoutée à l'étape
+  "Health Check" du pipeline pour détecter immédiatement un Prometheus qui
+  ne répond pas, plutôt que de le découvrir plus tard depuis le navigateur.
+
+Fichiers : `docker-compose.yml`, `Jenkinsfile`, `scripts/start-all.sh`.
+
+## 11. Convention de ports unifiée (fin des trois schémas différents)
+
+**Avant** : trois schémas de ports coexistaient et se contredisaient :
+`.env.example` (api-gateway sur 3000-3003), le `Jenkinsfile` généré
+(backend/microservices sur 5000-5004, frontend sur 3000) et
+`scripts/start-all.sh` (frontend sur 8080). Plusieurs variables utilisées
+par `docker-compose.yml` (`FRONTEND_HOST_PORT`, `BACKEND_HOST_PORT`,
+`CADVISOR_HOST_PORT`, `DOCKEROPT_FRONTEND_BUILD`, `DOCKEROPT_BACKEND_BUILD`)
+n'étaient même pas définies dans `.env.example`, ce qui pouvait faire
+échouer un simple `docker compose up` en dehors de Jenkins.
+
+**Après** : une convention unique, appliquée partout (`.env.example`,
+`docker-compose.yml`, `Jenkinsfile`, `prometheus/prometheus.yml`,
+`scripts/start-all.sh`, `README.md`) :
+- **Frontend** (interfaces servies au navigateur) : `3000`, incrémente pour
+  tout frontend supplémentaire futur.
+- **Backend** (API DockerOpt + microservices Node) : `5000`, `5001`,
+  `5002`, `5003`, `5004`.
+- **Infra / Monitoring** (Prometheus, cAdvisor, node-exporter) : ports
+  standards de leur écosystème respectif, volontairement en dehors des
+  deux plages ci-dessus.
+
+Chaque port n'est défini qu'à un seul endroit (`.env`) ; le port publié
+côté hôte et le port réellement écouté par le process à l'intérieur du
+conteneur utilisent toujours la même variable (ajout de `PORT: ${...}`
+dans l'`environment:` de chaque service Node de `docker-compose.yml`), ce
+qui n'était pas le cas auparavant (le port publié pouvait ne pas
+correspondre au port réellement écouté si on changeait juste `.env`).
+
+Bonus : l'URL d'API du frontend (`DOCKEROPT_FRONTEND_API_URL` /
+ex-`REACT_APP_API_URL`) ne servait en réalité à rien — Vite embarque les
+variables `VITE_*` **au moment du build**, un `environment:` runtime sur un
+conteneur nginx déjà construit n'a aucun effet. Elle est maintenant passée
+comme argument de build (`VITE_API_BASE`, voir
+`dockeropt-platform/frontend/Dockerfile`). De même, l'URL interne du
+backend utilisée par nginx pour proxyfier `/api/` était codée en dur
+(`http://backend:5000`) dans `nginx.conf` ; ce fichier est devenu un
+template (`nginx.conf.template`) substitué au **démarrage** du conteneur
+via la variable d'environnement `BACKEND_UPSTREAM`, dérivée de
+`BACKEND_HOST_PORT` — changer le port du backend dans `.env` suffit
+désormais, plus besoin de toucher quoi que ce soit côté frontend.
+
+Fichiers : `.env.example`, `docker-compose.yml`, `Jenkinsfile`,
+`prometheus/prometheus.yml`, `scripts/start-all.sh`, `README.md`,
+`dockeropt-platform/frontend/Dockerfile`,
+`dockeropt-platform/frontend/nginx.conf.template`,
+`dockeropt-platform/frontend/src/lib/api.js`.
+
+## 12. Scan de vulnérabilités : temps réel, sans correction automatique
+
+**Avant** : `/api/security/scan-image` mettait en cache le résultat Trivy
+pendant 1h — relancer un scan pouvait renvoyer un résultat périmé
+(`cached: true`), ce qui n'avait rien d'un scan "en temps réel" pour
+confirmer un résultat. Par ailleurs, la page Sécurité proposait un bouton
+"Corriger" au milieu du scan de vulnérabilités, mélangeant deux actions de
+nature différente (constater / corriger) dans un même flux.
+
+**Après** : le cache a été supprimé — chaque clic sur "Scanner" relance
+une analyse Trivy réellement à l'instant présent. Le bouton "Corriger" et
+toute la mécanique associée (`fixFinding`, `securityAutoFix` côté
+frontend) ont été retirés de l'interface : la page Sécurité est
+désormais un simple constat en lecture seule. L'endpoint backend
+`/api/security/auto-fix` reste disponible côté API pour un usage futur
+explicite, mais n'est plus déclenché depuis l'interface.
+
+Fichiers : `dockeropt-platform/backend/src/routes/security.js`,
+`dockeropt-platform/backend/src/config.js`,
+`dockeropt-platform/frontend/src/lib/securityScanStore.js`,
+`dockeropt-platform/frontend/src/components/SecurityView.jsx`,
+`dockeropt-platform/frontend/src/lib/api.js`.
+
+## 13. Séparation stricte "Scan de sécurité" / "Notifications"
+
+**Avant** : ouvrir l'onglet Sécurité déclenchait un appel à
+`/api/security/audit` dont le résultat (`security`) était injecté dans
+`buildAlerts()`, la fonction qui alimente à la fois la page Alertes ET le
+badge numérique de la cloche de notifications dans la barre du haut.
+Conséquence : consulter la Sécurité faisait immédiatement varier le badge
+de notifications, sans lien visible pour l'utilisateur entre les deux — la
+confusion rapportée ("le scan affiche un nombre dans le badge de
+notification"). Cet appel à l'audit n'était d'ailleurs même pas affiché
+sur la page Sécurité elle-même (qui utilise son propre store de scan
+indépendant) : il ne servait, de fait, qu'à alimenter ce badge.
+
+**Après** : séparation stricte des deux fonctionnalités.
+- La cloche de notifications et la page **Alertes** ne reflètent plus que
+  les recommandations d'optimisation critiques/avertissement et les
+  conteneurs arrêtés de façon inattendue — des événements réellement
+  "poussés" à l'utilisateur.
+- Les résultats de sécurité (audit de configuration + scan de
+  vulnérabilités Trivy) restent **exclusivement** sur la page Sécurité,
+  sans jamais influencer un badge ailleurs dans l'interface.
+- Le code mort qui chargeait l'audit dans `AppShell` (jamais affiché,
+  seulement utilisé pour ce badge) a été retiré.
+
+Fichiers : `dockeropt-platform/frontend/src/components/AlertsView.jsx`,
+`dockeropt-platform/frontend/src/App.jsx`.

@@ -1,7 +1,17 @@
 import { CircleCheck, TriangleAlert, OctagonAlert, ChevronRight } from 'lucide-react'
 import PageHeader from './PageHeader'
 
-function buildAlerts({ recommendations, containers, security }) {
+// CORRECTIF (conflit scan / notification) : cette liste ne reprend plus les
+// résultats de l'audit ou du scan de sécurité. Avant, ouvrir l'onglet
+// Sécurité déclenchait un chargement d'audit qui venait aussitôt gonfler le
+// badge de la cloche de notifications — deux fonctionnalités séparées se
+// mélangeaient sans que ce soit visible pour l'utilisateur. Désormais :
+//   • Alertes / cloche de notification = uniquement les recommandations
+//     d'optimisation critiques et les conteneurs arrêtés de façon
+//     inattendue — des événements réellement "poussés" vers l'utilisateur.
+//   • Résultats de sécurité (audit + scan Trivy) = visibles UNIQUEMENT sur
+//     la page Sécurité elle-même, jamais comptés ailleurs.
+function buildAlerts({ recommendations, containers }) {
   const alerts = []
 
   ;(recommendations?.recommendations || []).forEach((rec) => {
@@ -24,18 +34,6 @@ function buildAlerts({ recommendations, containers, security }) {
     }
   })
 
-  ;(security?.containers || []).forEach((c) => {
-    c.findings.forEach((f) => {
-      if (f.severity === 'critical' || f.severity === 'warning') {
-        alerts.push({
-          severity: f.severity,
-          title: `${c.name} — ${f.title}`,
-          detail: f.remediation,
-        })
-      }
-    })
-  })
-
   return alerts
 }
 
@@ -44,10 +42,10 @@ const SEVERITY_META = {
   warning: { icon: TriangleAlert, text: 'text-signal-amber', bg: 'bg-signal-amber/10', label: 'Avertissement' },
 }
 
-export default function AlertsView({ recommendations, containers, containersError, security }) {
-  const alerts = buildAlerts({ recommendations, containers, security })
+export default function AlertsView({ recommendations, containers, containersError }) {
+  const alerts = buildAlerts({ recommendations, containers })
   const header = (
-    <PageHeader title="Alertes" description="Anomalies en cours, réunies depuis l'optimisation, la sécurité et l'état des conteneurs." />
+    <PageHeader title="Alertes" description="Anomalies en cours, réunies depuis l'optimisation et l'état des conteneurs. Les résultats du scan de sécurité restent sur la page Sécurité." />
   )
 
   if (containersError) {

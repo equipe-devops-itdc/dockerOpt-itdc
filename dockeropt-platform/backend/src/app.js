@@ -29,9 +29,6 @@ function createApp() {
   app.use(morgan('combined'));
   app.use(express.json());
 
-  // Connexion : seule route /api/* accessible sans jeton (avec /health et
-  // /metrics, qui sont montées plus bas mais restent publiques grâce à
-  // PUBLIC_PATHS dans authMiddleware, indépendamment de leur ordre de
   // montage).
   app.use(publicAuthRouter);
 

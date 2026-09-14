@@ -35,9 +35,6 @@ router.get('/api/containers', async (req, res) => {
         firstSeen,
         isNew
       };
-
-      // On n'interroge les stats en temps réel que pour les conteneurs actifs :
-      // `stats()` sur un conteneur arrêté est inutile et ralentit la réponse.
       if (c.State !== 'running') {
         return { ...base, restartPolicy: 'none' };
       }

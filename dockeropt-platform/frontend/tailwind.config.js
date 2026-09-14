@@ -4,11 +4,6 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Chaque teinte est pilotée par une variable CSS (voir index.css),
-        // avec des valeurs différentes en mode sombre (par défaut) et en
-        // mode clair (classe .light sur <html>). Le format "rgb(var(..) /
-        // <alpha-value>)" préserve la compatibilité avec les utilitaires
-        // d'opacité déjà utilisés partout dans l'app (ex: bg-ink-800/80).
         ink: {
           950: 'rgb(var(--ink-950) / <alpha-value>)',
           900: 'rgb(var(--ink-900) / <alpha-value>)',
@@ -24,21 +19,12 @@ export default {
           faint: 'rgb(var(--text-faint) / <alpha-value>)',
         },
         signal: {
-          // Couleur d'accent PRINCIPALE (marque, actions, statut positif) —
-          // pilotée par --accent : cyan en sombre, orange en clair (voir
-          // index.css). Les autres couleurs "signal" restent fixes dans les
-          // deux thèmes car elles portent un sens précis (alerte, info…)
-          // indépendant du thème.
           accent: 'rgb(var(--accent) / <alpha-value>)',
           blue: '#4C8DFF',
           violet: '#8B7CF6',
           amber: '#F5A524',
           red: '#FB5B4C',
         },
-        // Texte des boutons à fond vif (accent/ambre) : toujours sombre,
-        // dans les deux thèmes — contrairement à ink-950 qui change de sens
-        // (surface la plus sombre en mode sombre, la plus claire en mode
-        // clair) et ne convient donc pas ici.
         'accent-fg': '#0A0E14',
       },
       fontFamily: {

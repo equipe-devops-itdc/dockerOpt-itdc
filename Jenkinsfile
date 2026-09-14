@@ -17,8 +17,6 @@ pipeline {
         stage('Nettoyage Pre-build') {
             steps {
                 sh label: 'Clean Workspace Files', script: '''
-                    # Nettoyage complet des reliquats
-                    rm -rf "${WORKSPACE}/prometheus.yml"
                     rm -f "${WORKSPACE}/.env"
                 '''
             }
@@ -39,31 +37,19 @@ pipeline {
                     string(credentialsId: 'DOCKEROPT_SMTP_FROM_ID', variable: 'CRED_SMTP_FROM'),
                     string(credentialsId: 'DOCKEROPT_ALERT_EMAIL_ID', variable: 'CRED_ALERT_EMAIL')
                 ]) {
-                    sh label: 'Création des fichiers .env et prometheus.yml', script: '''
+                    sh label: 'Création du fichier .env', script: '''
                         set -x
                         CLEAN_HOST=$(echo "${CRED_POSTGRES_HOST_RAW}" | sed -e 's|^https://||' -e 's|^http://||' -e 's|/.*||')
 
-                        # 1. Création de prometheus.yml
-                        cat <<'EOF' > "${WORKSPACE}/prometheus.yml"
-global:
-  scrape_interval: 5s
-  evaluation_interval: 5s
-
-scrape_configs:
-  - job_name: 'prometheus'
-    static_configs:
-      - targets: ['localhost:9090']
-
-  - job_name: 'node-exporter'
-    static_configs:
-      - targets: ['node-exporter:9100']
-
-  - job_name: 'cadvisor'
-    static_configs:
-      - targets: ['cadvisor:8080']
-EOF
-
-                        # 2. Création de .env
+                        # Seul .env est généré ici (secrets Jenkins). La config
+                        # Prometheus vit exclusivement dans ./prometheus/
+                        # (versionnée avec le code, montée telle quelle par
+                        # docker-compose.yml).
+                        #
+                        # --- CONVENTION DE PORTS ---
+                        #   FRONTEND : 3000, 3001, 3002...
+                        #   BACKEND  : 5000, 5001, 5002...
+                        #   INFRA/MONITORING : ports standards (9090, 9100, 8081...)
                         cat <<EOF > "${WORKSPACE}/.env"
 POSTGRES_HOST=${CLEAN_HOST}
 POSTGRES_PORT=${CRED_POSTGRES_PORT}
@@ -96,12 +82,14 @@ DOCKEROPT_NETWORK_NAME=dockeropt_net
 DOCKEROPT_NETWORK_SUBNET=172.28.0.0/16
 PROMETHEUS_DATA_VOLUME=prometheus_data
 
+# ---- FRONTEND (3000+) ----
 DOCKEROPT_FRONTEND_BUILD=./dockeropt-platform/frontend
 DOCKEROPT_FRONTEND_IMAGE=dockeropt-frontend:latest
 DOCKEROPT_FRONTEND_CONTAINER_NAME=dockeropt_frontend
 FRONTEND_HOST_PORT=3000
-DOCKEROPT_FRONTEND_API_URL=http://localhost:5000
+DOCKEROPT_FRONTEND_API_URL=/api
 
+# ---- BACKEND (5000+) ----
 DOCKEROPT_BACKEND_BUILD=./dockeropt-platform/backend
 DOCKEROPT_BACKEND_IMAGE=dockeropt-backend:latest
 DOCKEROPT_BACKEND_CONTAINER_NAME=dockeropt_backend
@@ -134,9 +122,10 @@ NOTIFICATION_SERVICE_PORT=5004
 NOTIFICATION_SERVICE_CPUS=0.5
 NOTIFICATION_SERVICE_MEM_LIMIT=512m
 
+# ---- INFRA / MONITORING (ports standards) ----
 CADVISOR_IMAGE=gcr.io/cadvisor/cadvisor:latest
 CADVISOR_CONTAINER_NAME=dockeropt_cadvisor
-CADVISOR_HOST_PORT=8083
+CADVISOR_HOST_PORT=8081
 
 PROMETHEUS_IMAGE=prom/prometheus:latest
 PROMETHEUS_CONTAINER_NAME=dockeropt_prometheus
@@ -148,9 +137,8 @@ NODE_EXPORTER_IMAGE=prom/node-exporter:latest
 NODE_EXPORTER_CONTAINER_NAME=dockeropt_node_exporter
 NODE_EXPORTER_PORT=9100
 EOF
-                        chmod 644 "${WORKSPACE}/prometheus.yml"
                         chmod 600 "${WORKSPACE}/.env"
-                        ls -la "${WORKSPACE}/.env" "${WORKSPACE}/prometheus.yml"
+                        ls -la "${WORKSPACE}/.env"
                     '''
                 }
             }
@@ -179,6 +167,15 @@ EOF
                 sh label: 'Vérification de l\'état des conteneurs', script: '''
                     sleep 5
                     docker compose --env-file .env ps
+                    echo "--- Prometheus ---"
+                    # Sonde directe : si Prometheus n'a pas pu charger sa
+                    # config (le bug corrigé dans docker-compose.yml), ce
+                    # health check échoue explicitement au lieu de laisser
+                    # découvrir le problème plus tard depuis le navigateur.
+                    . ./.env 2>/dev/null || true
+                    curl -sf "http://localhost:${PROMETHEUS_PORT:-9090}/-/healthy" \
+                        && echo "Prometheus OK" \
+                        || echo "ATTENTION : Prometheus ne répond pas — voir 'docker compose logs prometheus'"
                 '''
             }
         }
@@ -191,9 +188,6 @@ EOF
                     docker compose --env-file .env logs --tail=100 || true
                 fi
             '''
-        }
-        always {
-            sh label: 'Nettoyage final', script: 'rm -f .env prometheus.yml || true'
         }
     }
 }

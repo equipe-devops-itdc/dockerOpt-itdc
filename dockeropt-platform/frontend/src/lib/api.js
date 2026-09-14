@@ -1,3 +1,6 @@
+// Valeur injectée au moment du build par Docker (voir Dockerfile / ARG
+// VITE_API_BASE) ; '/api' par défaut, ce qui fonctionne avec le reverse
+// proxy nginx (voir nginx.conf) sans configuration supplémentaire.
 const API_BASE = import.meta.env.VITE_API_BASE || '/api'
 
 class ApiError extends Error {
@@ -6,10 +9,6 @@ class ApiError extends Error {
     this.status = status
   }
 }
-
-// Le jeton de session est géré ici (module-level) plutôt que passé en
-// argument à chaque appel : plus simple, et un seul endroit à mettre à
-// jour au login/logout. AuthProvider appelle setAuthToken()/clearAuthToken().
 let authToken = null
 let onUnauthorized = null
 
@@ -83,11 +82,6 @@ export const api = {
   optimizationLogs: (containerName) =>
     request(`/optimize/logs${containerName ? `?container=${encodeURIComponent(containerName)}` : ''}`),
   securityAudit: () => request('/security/audit'),
-  securityAutoFix: (container, findingId, host = 'local') =>
-    request('/security/auto-fix', {
-      method: 'POST',
-      body: JSON.stringify({ container, findingId, host }),
-    }),
   scanImage: (image) =>
     request('/security/scan-image', {
       method: 'POST',

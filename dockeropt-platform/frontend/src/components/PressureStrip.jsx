@@ -15,9 +15,6 @@ function levelFor(value) {
   return 'ok'
 }
 
-// Renders a rolling strip of ticks representing recent overall system pressure,
-// similar in spirit to a heart-rate monitor: reads at a glance, degrades gracefully
-// when data points are missing rather than showing a broken chart.
 export default function PressureStrip({ history = [], width = 260, height = 28 }) {
   const { theme } = useTheme()
   const slots = 36

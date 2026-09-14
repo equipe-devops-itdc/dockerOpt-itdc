@@ -46,10 +46,6 @@ function computeHostMemPercent() {
 }
 
 async function computeHostDiskPercent() {
-  // Implémentation 100% native (fs.statfsSync) plutôt qu'un appel shell à
-  // `df`/`awk`/`tr` : évite toute dépendance à des utilitaires système dont
-  // la disponibilité varie selon l'image de base (la mésaventure avec Trivy
-  // sur Alpine vs Debian a montré que ce genre de supposition est fragile).
   try {
     const stats = fs.statfsSync('/');
     const used = stats.blocks - stats.bfree;

@@ -102,10 +102,6 @@ router.post('/api/optimize/apply', async (req, res) => {
   const client = hostEntry.client;
 
   try {
-    // CORRECTIF : `all: true` pour pouvoir aussi appliquer une optimisation
-    // sur un conteneur ARRÊTÉ (les nouvelles limites s'appliqueront à son
-    // prochain démarrage). Avec `all: false`, un conteneur arrêté n'était
-    // jamais trouvé et l'application échouait avec un 404.
     const containers = await client.listContainers({ all: true });
     const target = containers.find(c => c.Names[0].replace('/', '') === containerName);
 
@@ -134,9 +130,6 @@ router.post('/api/optimize/apply', async (req, res) => {
       }
       case 'reduce_memory': {
         const newMem = Math.max(Math.floor((currentConfig.HostConfig.Memory || 268435456) * 0.7), 83886080);
-        // CORRECTIF : toujours fixer MemorySwap en même temps que Memory —
-        // Docker refuse (409) une Memory inférieure au MemorySwap déjà en
-        // place. On garde le ratio par défaut de Docker (swap = 2x la RAM).
         updateConfig = { Memory: newMem, MemorySwap: newMem * 2 };
         actionDescription = `Mémoire réduite à ${(newMem / 1024 / 1024).toFixed(0)} MB`;
         break;
@@ -153,12 +146,6 @@ router.post('/api/optimize/apply', async (req, res) => {
 
     await container.update(updateConfig);
     optimizationActions.inc({ action, container: containerName, status: 'applied' });
-
-    // IMPORTANT : la clé doit être IDENTIQUE à celle utilisée par le moteur
-    // de recommandations (`${host}:${containerId}`), sans quoi le cooldown
-    // ne cible pas le bon conteneur et la recommandation peut réapparaître
-    // immédiatement après application — c'est ce qui la faisait "rester"
-    // dans la liste malgré le clic sur Appliquer.
     const historyKey = `${hostName}:${target.Id}`;
     const type = action.includes('cpu') ? 'cpu' : 'memory';
     resourceHistory.delete(historyKey);
@@ -194,9 +181,6 @@ router.post('/api/optimize/history', async (req, res) => {
   }
 });
 
-// Journal des CAUSES de détection (pourquoi une recommandation a été
-// déclenchée, avec la valeur mesurée) — distinct de l'historique
-// ci-dessus, qui ne trace que les optimisations réellement APPLIQUÉES.
 router.get('/api/optimize/logs', (req, res) => {
   const { container } = req.query;
   const filtered = container

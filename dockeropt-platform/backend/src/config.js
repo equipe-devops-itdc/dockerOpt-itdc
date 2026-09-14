@@ -25,8 +25,8 @@ if (!ADMIN_EMAIL || !ADMIN_PASSWORD || !JWT_SECRET) {
 const PUBLIC_PATHS = new Set(['/api/auth/login', '/health', '/metrics']);
 
 // ---- Sécurité : scan Trivy ----
+// Toujours exécuté en temps réel (pas de cache) : voir routes/security.js.
 const TRIVY_TIMEOUT_MS = 165000; // < 185s (nginx) pour laisser le temps de répondre proprement
-const TRIVY_CACHE_TTL_MS = 60 * 60 * 1000; // 1h : une image ne change pas d'une minute à l'autre
 
 // ---- Auto-découverte des services ----
 const NEW_SERVICE_WINDOW_MS = 3 * 60 * 1000;
@@ -59,7 +59,7 @@ const PLATFORM_URL = process.env.PLATFORM_URL || 'http://localhost:3000';
 module.exports = {
   PORT, PROMETHEUS_URL, SERVICE_DISPLAY, METRICS_PREFIX,
   ADMIN_EMAIL, ADMIN_PASSWORD, JWT_SECRET, JWT_EXPIRES_IN, PUBLIC_PATHS,
-  TRIVY_TIMEOUT_MS, TRIVY_CACHE_TTL_MS,
+  TRIVY_TIMEOUT_MS,
   NEW_SERVICE_WINDOW_MS,
   RECO_WINDOW_MS, RECO_MIN_SAMPLES, COOLDOWN_MS, OPTIMIZATION_LOG_MAX,
   PLATFORM_INFRA_CONTAINERS,

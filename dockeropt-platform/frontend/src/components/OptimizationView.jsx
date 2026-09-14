@@ -9,12 +9,6 @@ const SEVERITY_META = {
 }
 
 const TYPE_ICON = { cpu: Cpu, memory: MemoryStick }
-
-// Le backend applique un délai de grâce (3 min) avant de rejuger un
-// conteneur après une optimisation appliquée avec succès. On aligne la
-// durée de masquage local sur cette même fenêtre, en garantie côté
-// interface : l'élément ne doit pas pouvoir réapparaître avant que le
-// backend n'ait lui-même arrêté de le proposer.
 const OPTIMISTIC_HIDE_MS = 3 * 60 * 1000
 
 export default function OptimizationView({ recommendations, history, error, onApply }) {

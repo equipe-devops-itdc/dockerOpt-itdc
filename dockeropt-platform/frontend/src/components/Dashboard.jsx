@@ -33,12 +33,7 @@ export default function Dashboard({ system, containers, recommendations, network
 
   return (
     <div>
-      <PageHeader
-        hero
-        title=""
-        description=""
-      />
-
+      
       <div className="space-y-6">
       <ErrorBanner message={errors.system && `Statistiques système indisponibles — ${errors.system}`} />
 

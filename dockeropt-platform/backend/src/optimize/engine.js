@@ -19,13 +19,7 @@
 
 const { RECO_WINDOW_MS, RECO_MIN_SAMPLES, COOLDOWN_MS, OPTIMIZATION_LOG_MAX, PLATFORM_INFRA_CONTAINERS } = require('../config');
 
-const resourceHistory = new Map(); // containerId -> [{ t, cpu, mem }]
-
-// Après l'application d'une optimisation, le conteneur doit redémarrer pour
-// que le changement prenne effet — le pénaliser à nouveau immédiatement
-// (avec l'historique d'AVANT le changement) n'aurait aucun sens. On observe
-// donc une période de grâce pendant laquelle ce type de recommandation ne
-// réapparaît pas pour ce conteneur.
+const resourceHistory = new Map();
 const recommendationCooldowns = new Map(); // "containerId:type" -> expiryTimestamp
 
 function pushResourceSample(id, cpu, mem) {
@@ -45,13 +39,6 @@ function isOnCooldown(containerId, type) {
   const expiry = recommendationCooldowns.get(`${containerId}:${type}`);
   return expiry != null && Date.now() < expiry;
 }
-
-// ---- Journal des détections d'optimisation (par conteneur) ----
-//
-// Une entrée est ajoutée uniquement lors de la TRANSITION vers un état
-// signalé (pas à chaque cycle de 15s tant que la condition persiste), pour
-// que le journal reste lisible : on y voit QUAND un problème est apparu et
-// POURQUOI (valeur mesurée, seuil), pas un flot répétitif.
 const optimizationDetectionLog = [];
 const previouslyFlaggedKeys = new Set();
 

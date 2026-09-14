@@ -18,10 +18,6 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     setUnauthorizedHandler(logout)
   }, [logout])
-
-  // Restaure la session existante au chargement (jeton en localStorage),
-  // en vérifiant sa validité auprès du backend plutôt que de faire
-  // confiance à sa seule présence.
   useEffect(() => {
     const stored = window.localStorage.getItem(STORAGE_KEY)
     if (!stored) {

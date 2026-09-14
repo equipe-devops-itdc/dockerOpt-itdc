@@ -14,11 +14,6 @@ export function useLiveData() {
   const [lastUpdated, setLastUpdated] = useState(null)
   const [loading, setLoading] = useState(true)
   const timerRef = useRef(null)
-
-  // Empêche deux cycles de se chevaucher si le backend met plus longtemps
-  // à répondre que REFRESH_MS (utile en particulier juste après un
-  // `docker compose down`, où les requêtes peuvent traîner en timeout
-  // avant d'échouer).
   const inFlightRef = useRef(false)
 
   const refresh = useCallback(async () => {
@@ -33,14 +28,6 @@ export function useLiveData() {
       api.recommendations(),
       api.history(),
     ])
-
-    // CORRECTIF : sur échec, on vide explicitement l'état plutôt que de
-    // laisser la dernière valeur connue en place. Sans ça, quand le
-    // backend/Docker devient injoignable (ex. après `docker compose
-    // down`), le tableau de bord continue d'afficher les derniers chiffres
-    // vus comme s'ils étaient toujours d'actualité — ce n'est jamais
-    // signalé nulle part sauf dans `errors`, que rien n'affiche vraiment
-    // comme une coupure.
     if (systemRes.status === 'fulfilled') {
       setSystem(systemRes.value)
     } else {
@@ -78,10 +65,6 @@ export function useLiveData() {
   useEffect(() => {
     refresh()
     timerRef.current = setInterval(refresh, REFRESH_MS)
-
-    // Retour au premier plan (l'utilisateur revient sur l'onglet) : on
-    // relance immédiatement un cycle pour rattraper l'écart plutôt que
-    // d'attendre le prochain tick.
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') refresh()
     }

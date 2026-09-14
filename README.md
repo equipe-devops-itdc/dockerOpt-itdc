@@ -8,7 +8,7 @@ Plateforme d'analyse, de surveillance et d'optimisation de l'utilisation des res
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                     🌐 DockerOpt Frontend                    │
-│                   (Dashboard Web - Port 8080)                │
+│                   (Dashboard Web - Port 3000)                │
 └──────────────────────────┬──────────────────────────────────┘
                            │
 ┌──────────────────────────▼──────────────────────────────────┐
@@ -19,7 +19,7 @@ Plateforme d'analyse, de surveillance et d'optimisation de l'utilisation des res
 ┌────▼──┐ ┌────▼──┐ ┌────▼──┐ ┌────▼────────────┐
 │API    │ │User  │ │Product│ │Notification      │
 │Gateway│ │Service│ │Service│ │Service           │
-│:3000  │ │:3001  │ │:3002  │ │:3003             │
+│:5001  │ │:5002  │ │:5003  │ │:5004             │
 └───┬───┘ └───────┘ └───────┘ └──────────────────┘
     │
 ┌───▼──────────────────────────────────────────────────────────┐
@@ -62,7 +62,7 @@ Plateforme d'analyse, de surveillance et d'optimisation de l'utilisation des res
                             │
                   ┌─────────┴─────────┐
                   ▼                   ▼
-            Backend :5000       Frontend :8080
+            Backend :5000       Frontend :3000
                   │
                   ▼
               PostgreSQL
@@ -79,13 +79,26 @@ Plateforme d'analyse, de surveillance et d'optimisation de l'utilisation des res
 
 ## Architecture Détaillée
 
+> **Convention de ports (aucune valeur codée en dur ailleurs que dans
+> `.env.example`)** :
+> - **Frontend** (interfaces servies au navigateur) : `3000`, puis
+>   incrémente pour tout futur frontend supplémentaire.
+> - **Backend** (API DockerOpt + microservices Node) : `5000`, `5001`,
+>   `5002`, `5003`, `5004`...
+> - **Infra / Monitoring** (Prometheus, cAdvisor, node-exporter) : ports
+>   standards de leur écosystème, volontairement en dehors des deux plages
+>   ci-dessus.
+>
+> Chaque port n'existe qu'une fois dans `.env` / `.env.example` — changer sa
+> valeur suffit, il n'y a rien à recopier ailleurs (voir `docker-compose.yml`).
+
 ### Microservices (Node.js/Express)
 | Service | Rôle | Port |
 |---------|------|------|
-| **API Gateway** | Point d'entrée, routage des requêtes | 3000 |
-| **User Service** | Gestion des utilisateurs | 3001 |
-| **Product Service** | Catalogue produits | 3002 |
-| **Notification Service** | Notifications (email/SMS) | 3003 |
+| **API Gateway** | Point d'entrée, routage des requêtes | 5001 |
+| **User Service** | Gestion des utilisateurs | 5002 |
+| **Product Service** | Catalogue produits | 5003 |
+| **Notification Service** | Notifications (email/SMS) | 5004 |
 
 ### Monitoring Stack
 | Service | Rôle | Port |
@@ -98,7 +111,7 @@ Plateforme d'analyse, de surveillance et d'optimisation de l'utilisation des res
 | Service | Rôle | Port |
 |---------|------|------|
 | **DockerOpt Backend** | API d'optimisation & analyse | 5000 |
-| **DockerOpt Frontend** | Dashboard web interactif | 8080 |
+| **DockerOpt Frontend** | Dashboard web interactif | 3000 |
 
 ## 🛠️ Fonctionnalités
 
@@ -135,29 +148,34 @@ Plateforme d'analyse, de surveillance et d'optimisation de l'utilisation des res
 # 1. Cloner / se placer dans le projet
 cd dockeropt
 
-# 2. Lancer toute l'infrastructure
-docker-compose up -d --build
+# 2. Créer le fichier .env à partir du modèle (à faire UNE SEULE FOIS,
+#    ce fichier n'est pas versionné — voir .gitignore)
+cp .env.example .env
+# ... puis éditez .env : mots de passe, JWT_SECRET, SMTP, etc.
 
-# 3. Vérifier que tout est opérationnel
-docker-compose ps
+# 3. Lancer toute l'infrastructure
+docker compose up -d --build
 
-# 4. Accéder aux interfaces
-#    - Dashboard DockerOpt : http://localhost:8080
+# 4. Vérifier que tout est opérationnel
+docker compose ps
+
+# 5. Accéder aux interfaces
+#    - Dashboard DockerOpt : http://localhost:3000
 #    - Prometheus         : http://localhost:9090
 ```
 
 ### Lancer le générateur de charge (tests)
 
 ```bash
-docker-compose --profile test up -d load-generator
+docker compose --profile test up -d load-generator
 ```
 
 ### Arrêter l'infrastructure
 
 ```bash
-docker-compose down
+docker compose down
 # Supprimer aussi les volumes de données
-docker-compose down -v
+docker compose down -v
 ```
 
 ## API Endpoints
@@ -178,18 +196,17 @@ docker-compose down -v
 
 | Interface | URL | Credentials |
 |-----------|-----|-------------|
-| DockerOpt Dashboard | http://localhost:8080 | admin@platform.local / change-me-in-production |
+| DockerOpt Dashboard | http://localhost:3000 | admin@platform.local / change-me-in-production |
 | Prometheus | http://localhost:9090 | - |
 | cAdvisor | http://localhost:8081 | - |
 
 **Avant toute mise en production**, changez `ADMIN_EMAIL`, `ADMIN_PASSWORD`
-et `JWT_SECRET` dans `docker-compose.yml` (service `dockeropt-backend`) —
+et `JWT_SECRET` dans `.env` (généré à partir de `.env.example`) —
 les valeurs par défaut ne sont là que pour démarrer rapidement en local.
 
 ## Notifications par email (optionnel)
 
-Pour activer les alertes par email, renseignez ces variables dans
-`docker-compose.yml` (service `dockeropt-backend`) :
+Pour activer les alertes par email, renseignez ces variables dans `.env` :
 
 ```yaml
 - SMTP_HOST=smtp.gmail.com
@@ -223,7 +240,7 @@ curl http://localhost:5000/api/optimize/recommendations | jq .
 
 ### 3. Générer du trafic
 ```bash
-docker-compose --profile test up -d load-generator
+docker compose --profile test up -d load-generator
 ```
 
 ##  Dépannage
@@ -231,8 +248,14 @@ docker-compose --profile test up -d load-generator
 ### Prometheus n'est pas prêt
 ```bash
 # Attendre 30-60s le temps que Prometheus initialise
-docker-compose logs prometheus
+docker compose logs prometheus
 ```
+Si Prometheus reste **arrêté durablement** (pas seulement au démarrage) :
+vérifiez que `./prometheus/prometheus.yml` et `./prometheus/alert.rules.yml`
+existent bien à la racine du projet sur le serveur — ce sont ces fichiers
+versionnés que `docker-compose.yml` monte désormais dans le conteneur
+Prometheus. Ne les supprimez jamais et ne les régénérez pas à la volée
+(voir `AMELIORATIONS.md`, section sur ce correctif).
 
 ### Les métriques ne s'affichent pas
 ```bash
@@ -242,7 +265,7 @@ curl http://localhost:9090/api/v1/targets
 
 ### Redémarrer un service spécifique
 ```bash
-docker-compose restart dockeropt-backend
+docker compose restart dockeropt-backend
 ```
 
 ##  Structure du Projet

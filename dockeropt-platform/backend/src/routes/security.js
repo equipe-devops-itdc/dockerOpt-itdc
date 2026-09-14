@@ -12,7 +12,7 @@ const execAsync = util.promisify(exec);
 
 const { getAllHostClients, dockerHosts } = require('../docker/hosts');
 const { auditContainerSecurity, AUTO_FIXABLE_FINDINGS } = require('../security/checks');
-const { TRIVY_TIMEOUT_MS, TRIVY_CACHE_TTL_MS } = require('../config');
+const { TRIVY_TIMEOUT_MS } = require('../config');
 
 const router = express.Router();
 
@@ -71,24 +71,12 @@ router.post('/api/security/auto-fix', async (req, res) => {
   if (!hostEntry) return res.status(404).json({ error: `Hôte '${hostName}' inconnu` });
 
   try {
-    // CORRECTIF : `all: true` (et non `all: false`) pour retrouver aussi un
-    // conteneur ARRÊTÉ. `container.update()` fonctionne très bien sur un
-    // conteneur stoppé — les nouvelles limites s'appliquent simplement au
-    // prochain démarrage. Avec `all: false`, un conteneur arrêté n'était
-    // jamais trouvé et la correction échouait avec un 404.
     const containers = await hostEntry.client.listContainers({ all: true });
     const target = containers.find((c) => c.Names[0].replace('/', '') === containerName);
     if (!target) return res.status(404).json({ error: `Conteneur ${containerName} introuvable` });
 
     const container = hostEntry.client.getContainer(target.Id);
-    // Limites par défaut raisonnables — l'utilisateur peut ensuite les
-    // affiner depuis l'onglet Optimisation une fois l'usage réel observé.
-    const DEFAULT_MEMORY = 512 * 1024 * 1024; // 512 MB
-    // CORRECTIF : Docker exige que MemorySwap soit toujours >= Memory. Si on
-    // ne fixe QUE `Memory`, l'appel échoue avec un 409 dès que le
-    // MemorySwap déjà en place (ex: laissé par une optimisation précédente)
-    // est inférieur à la nouvelle valeur. On fixe donc toujours les deux
-    // ensemble (swap = 2x la RAM, comportement par défaut de Docker).
+    const DEFAULT_MEMORY = 512 * 1024 * 1024;
     const DEFAULT_MEMORY_SWAP = DEFAULT_MEMORY * 2;
     const DEFAULT_NANO_CPUS = 500000000; // 0.5 CPU
 
@@ -107,17 +95,9 @@ router.post('/api/security/auto-fix', async (req, res) => {
   }
 });
 
-// ---- Scan de vulnérabilités d'image (Trivy, à la demande) ----
-const trivyCache = new Map(); // image -> { result, scannedAt }
-
 router.post('/api/security/scan-image', async (req, res) => {
   const { image } = req.body;
   if (!image) return res.status(400).json({ error: 'Image requise' });
-
-  const cached = trivyCache.get(image);
-  if (cached && Date.now() - cached.scannedAt < TRIVY_CACHE_TTL_MS) {
-    return res.json({ ...cached.result, cached: true });
-  }
 
   try {
     const { stdout } = await execAsync(
@@ -151,8 +131,7 @@ router.post('/api/security/scan-image', async (req, res) => {
       topVulnerabilities: topVulnerabilities.slice(0, 15),
       scannedAt: new Date().toISOString()
     };
-    trivyCache.set(image, { result, scannedAt: Date.now() });
-    res.json({ ...result, cached: false });
+    res.json({ ...result, cached: false, realtime: true });
   } catch (err) {
     const isMissingBinary = /not found|ENOENT/i.test(err.message);
     res.status(isMissingBinary ? 501 : 500).json({

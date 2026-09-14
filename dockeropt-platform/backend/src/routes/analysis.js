@@ -16,19 +16,12 @@ router.get('/api/analysis/system', async (req, res) => {
     queryPrometheusInstant('(node_memory_MemTotal_bytes - node_memory_MemFree_bytes - node_memory_Cached_bytes - node_memory_Buffers_bytes) / node_memory_MemTotal_bytes * 100'),
     queryPrometheusInstant('(node_filesystem_size_bytes{mountpoint="/"} - node_filesystem_free_bytes{mountpoint="/"}) / node_filesystem_size_bytes{mountpoint="/"} * 100')
   ]);
-
-  // Aucune valeur synthétique : si Prometheus/node-exporter n'a pas encore
-  // fourni de série, l'interface affiche "—" au lieu d'inventer une mesure.
   const toResult = (val) => ({
     data: { result: val != null ? [{ value: [Date.now() / 1000, String(val)] }] : [] }
   });
 
   try {
     const info = await docker.info();
-
-    // Compte agrégé sur TOUS les hôtes connectés (local + distants) — un
-    // hôte distant injoignable est simplement ignoré, il n'empêche pas
-    // l'affichage du reste.
     const perHostCounts = await Promise.allSettled(getAllHostClients().map(async ({ name, client }) => {
       const [running, all] = await Promise.all([
         client.listContainers({ all: false }),

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Sidebar from './components/Sidebar'
 import TopBar from './components/TopBar'
 import Dashboard from './components/Dashboard'
@@ -45,31 +45,9 @@ function AppShell() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     () => typeof window !== 'undefined' && window.localStorage.getItem('dockeropt-sidebar-collapsed') === '1'
   )
-  const [security, setSecurity] = useState(null)
-  const [securityError, setSecurityError] = useState(null)
-  const [securityLoading, setSecurityLoading] = useState(false)
   const { system, containers, recommendations, history, errors, lastUpdated, loading, refresh } = useLiveData()
   const { pressureHistory, networkHistory, cpuHistory, memHistory, diskHistory, netRateHistory } = useMetricsHistory({ system, containers })
   const announcedRef = useRef(new Set())
-
-  const loadSecurity = useCallback(async () => {
-    setSecurityLoading(true)
-    try {
-      const data = await api.securityAudit()
-      setSecurity(data)
-      setSecurityError(null)
-    } catch (err) {
-      setSecurityError(err.message || 'Indisponible')
-    } finally {
-      setSecurityLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    if (tab === 'security' && !security && !securityLoading) {
-      loadSecurity()
-    }
-  }, [tab, security, securityLoading, loadSecurity])
 
   const toggleSidebar = () => {
     setSidebarCollapsed((prev) => {
@@ -81,10 +59,9 @@ function AppShell() {
 
   const errorCount = Object.keys(errors).length
   const status = errorCount === 0 ? 'healthy' : errorCount >= 3 ? 'offline' : 'degraded'
-
   const alerts = useMemo(
-    () => buildAlerts({ recommendations, containers, security }),
-    [recommendations, containers, security]
+    () => buildAlerts({ recommendations, containers }),
+    [recommendations, containers]
   )
 
   const [seenAlertKeys, setSeenAlertKeys] = useState(() => {
@@ -160,7 +137,6 @@ function AppShell() {
           onChange={setTab}
           alertCount={unseenAlertCount}
           newServicesCount={newStacks.size}
-          securityCriticalCount={security?.critical_count || 0}
           isOpen={mobileNavOpen}
           onClose={() => setMobileNavOpen(false)}
           collapsed={sidebarCollapsed}
@@ -203,9 +179,7 @@ function AppShell() {
                 {tab === 'services' && (
                   <ServicesView containers={containers} error={errors.containers} />
                 )}
-                {tab === 'security' && (
-                  <SecurityView audit={security} error={securityError} loading={securityLoading} onRefresh={loadSecurity} />
-                )}
+                {tab === 'security' && <SecurityView />}
                 {tab === 'containers' && (
                   <ContainersView containers={containers} error={errors.containers} />
                 )}
@@ -222,7 +196,6 @@ function AppShell() {
                     recommendations={recommendations}
                     containers={containers}
                     containersError={errors.containers}
-                    security={security}
                   />
                 )}
               </>

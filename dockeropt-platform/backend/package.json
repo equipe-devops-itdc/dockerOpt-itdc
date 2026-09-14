@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "DockerOpt - Plateforme d'optimisation des ressources Docker",
   "main": "server.js",
- "scripts": {
+  "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
     "test": "NODE_ENV=test jest --runInBand"

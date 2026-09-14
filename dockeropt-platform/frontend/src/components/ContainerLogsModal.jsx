@@ -26,13 +26,7 @@ export default function ContainerLogsModal({ container, onClose }) {
       if (!silent) setLogsLoading(false)
     }
   }
-
-  // Chargement initial à l'ouverture, puis suivi en temps réel : tant que
-  // la modale reste ouverte sur ce conteneur, on repolle silencieusement
-  // (sans montrer le loader) pour que TOUTE nouvelle action du conteneur
-  // (redémarrage, écriture applicative, etc.) apparaisse sans action de
-  // l'utilisateur. L'intervalle s'arrête proprement à la fermeture ou au
-  // changement de conteneur.
+  
   useEffect(() => {
     if (!container) return
     setLogs(null)
