@@ -113,10 +113,10 @@ NOTIFICATION_SERVICE_PORT=5004
 NOTIFICATION_SERVICE_CPUS=0.5
 NOTIFICATION_SERVICE_MEM_LIMIT=512m
 
-# ---- INFRA / MONITORING (ports standards) ----
+# ---- INFRA / MONITORING ----
 CADVISOR_IMAGE=gcr.io/cadvisor/cadvisor:latest
 CADVISOR_CONTAINER_NAME=dockeropt_cadvisor
-CADVISOR_HOST_PORT=8081
+CADVISOR_HOST_PORT=8085
 
 PROMETHEUS_IMAGE=prom/prometheus:latest
 PROMETHEUS_CONTAINER_NAME=dockeropt_prometheus
@@ -176,7 +176,7 @@ EOF
                             if command -v fuser >/dev/null 2>&1; then
                                 if fuser "${p}/tcp" >/dev/null 2>&1; then
                                     echo "Port $p tenu par un process hors Docker -> tentative de libération (fuser)"
-                                    fuser -k "${p}/tcp" 2>/dev/null || true
+                                    fuser -k -9 "${p}/tcp" 2>/dev/null || true
                                     sleep 1
                                 fi
                             fi

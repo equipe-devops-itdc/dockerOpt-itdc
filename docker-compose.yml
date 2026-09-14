@@ -150,7 +150,7 @@ services:
     networks:
       - dockeropt-network
 
-  # --- MONITORING (ports standards : 8081, 9090, 9100) ---
+  # --- MONITORING (ports : 8085, 9090, 9100) ---
   cadvisor:
     image: ${CADVISOR_IMAGE}
     container_name: ${CADVISOR_CONTAINER_NAME}
