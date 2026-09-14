@@ -190,6 +190,10 @@ services:
         target: /etc/prometheus/alert.rules.yml
         read_only: true
       - prometheus-data:/prometheus
+      - type: bind
+        source: /var/run/docker.sock
+        target: /var/run/docker.sock
+        read_only: true
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
