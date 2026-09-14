@@ -21,7 +21,14 @@ server {
     }
 
     location /api/ {
-        set $backend_upstream http://backend:5000;
+        # BACKEND_UPSTREAM est injecté au démarrage du conteneur (et non au
+        # build, contrairement à VITE_API_BASE) via le mécanisme de templates
+        # natif de l'image nginx officielle (/etc/nginx/templates/*.template
+        # -> envsubst -> /etc/nginx/conf.d/*.conf), voir Dockerfile et
+        # docker-compose.yml (environment.BACKEND_UPSTREAM du service
+        # frontend, dérivé de BACKEND_HOST_PORT). Ainsi, changer le port du
+        # backend dans .env suffit : plus besoin de toucher ce fichier.
+        set $backend_upstream ${BACKEND_UPSTREAM};
         proxy_pass $backend_upstream;
         
         proxy_set_header Host $host;
